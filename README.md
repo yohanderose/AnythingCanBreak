@@ -1,6 +1,9 @@
 Art exhibit where sensors monitor an area, and plays different sounds depending on where the viewer is standing.
 
-<div style="width: 640px; height: 480px; margin: 10px; position: relative;"><iframe allowfullscreen frameborder="0" style="width:640px; height:480px" src="https://lucid.app/documents/embedded/fce0d5f7-c253-42c3-8bb9-a94bb1083a8c" id="xbqfeEyuO-47"></iframe></div>
+<p align="center">
+    <img width="640px"src="docs/overview.png">
+</p>
+
 
 ## Hardware 🔨
 
