@@ -20,7 +20,7 @@ def find_audio_file(id) -> str:
     return "file not found"
 
 
-SOUNDS_DIR = "sounds"
+SOUNDS_DIR = "./api/sounds"
 sound_sensors = [f"{i}" for i in range(1, 17)]
 
 
@@ -81,16 +81,18 @@ def data():
             # range_ = request.get_json(force=True)['range']
             sensorID_ = request.args.get('sensorID')
             range_ = request.args.get('range')
-            # send ok response
-            res = f"sensorID: {sensorID_}, range: {range_}"
+            motion_ = request.args.get('motion')
+
+            res = f"sensorID: {sensorID_}, range: {range_}, motion: {motion_}"
             log.write(f"{dt.now()} | ({origin}) {res}\n")
             print(f"{dt.now()} | ({origin}) {res}")
 
             area = area_map[sensorID_]
             thread = area_thread_map[sensorID_]
-            if int(range_) > 30:  # or/and motion detected
-                area.set_person_detected(True)
-                thread.start()
+            if int(range_) > 30 and int(motion_) == 1:  # or/and motion detected
+                if not area.person_detected:
+                    area.set_person_detected(True)
+                    thread.start()
             else:
                 if thread.is_alive():
                     area.set_person_detected(False)

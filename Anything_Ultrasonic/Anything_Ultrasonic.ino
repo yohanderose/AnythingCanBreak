@@ -25,14 +25,18 @@ A4 -------- TD (SDA) DT>D4
 typedef struct message {
   int sensorID;
   long range;
+  int motion;
 };
+
+int DEVICE_ID = 16;
+int MOTION_SENSOR_PIN = 2;
 
 struct message myMessage;
 WiFiClient client;
 char ssid[] = "yohan_phone";       // your network SSID (name)
 char pass[] = "testing123";        // your network password
-int status = WL_IDLE_STATUS;       // the Wifi radio's status
 char HOST_NAME[] = "172.20.10.5";  // hostname of web server:
+int status = WL_IDLE_STATUS;       // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
   // Serial.println("Status:");
@@ -41,12 +45,61 @@ void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
+  pinMode(MOTION_SENSOR_PIN, INPUT);
+  myMessage.sensorID = DEVICE_ID;
+  myMessage.motion = LOW;
+  myMessage.range = 0;
+
   WiFi.mode(WIFI_STA);
 
   Serial.begin(115200);  //Open serial connection at 115200 baud
   while (!Serial) {
     ;  // wait for serial port to connect. Needed for native USB port only
   }
+
+  connectToWiFi();
+
+  Wire.begin();
+  changeAddress(SensorAddress, 0x40, 0);
+
+  // Get Mac Add
+  // Serial.print("Mac Address: ");
+  // Serial.print(WiFi.macAddress());
+  // Serial.println("ESP-Now Sender");
+  // Initializing the ESP-NOW
+  /* if (esp_now_init() != 0) { */
+  /*   Serial.println("Problem during ESP-NOW init"); */
+  /*   return; */
+  /* } */
+  /* esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER); */
+  /* // Register the peer */
+  /* //Serial.println("Registering a peer"); */
+  /* esp_now_add_peer(peer1, ESP_NOW_ROLE_SLAVE, 1, NULL, 0); */
+  /* //Serial.println("Registering send callback function"); */
+  /* esp_now_register_send_cb(onSent); */
+}
+
+void loop() {
+  takeRangeReading();                  //Tell the sensor to perform a ranging cycle
+  delay(1000);                         //Wait for sensor to finish
+  myMessage.range = requestRange();    //Get the range from the sensor
+  myMessage.motion = requestMotion();  // Get the motion from the sensor
+
+
+  if (status == WL_CONNECTED) {
+    sendToMaster();
+  }
+
+  /* Serial.println(range); */
+  //analogWrite(9, (262.2857-0.3643*range));
+  // changeAddress(0x70,0x20,0);
+
+  // Serial.println("Send a new message");
+  /* esp_now_send(NULL, (uint8_t *) &myMessage, sizeof(myMessage)); */
+  delay(150);
+}
+
+int connectToWiFi() {
 
   // check for the presence of the shield:
   if (WiFi.status() == WL_NO_SHIELD) {
@@ -89,45 +142,7 @@ void setup() {
   /*   delay(5000); */
   /* } */
 
-  Wire.begin();
-  changeAddress(SensorAddress, 0x40, 0);
-
-  // Get Mac Add
-  // Serial.print("Mac Address: ");
-  // Serial.print(WiFi.macAddress());
-  // Serial.println("ESP-Now Sender");
-  // Initializing the ESP-NOW
-  /* if (esp_now_init() != 0) { */
-  /*   Serial.println("Problem during ESP-NOW init"); */
-  /*   return; */
-  /* } */
-  /* esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER); */
-  /* // Register the peer */
-  /* //Serial.println("Registering a peer"); */
-  /* esp_now_add_peer(peer1, ESP_NOW_ROLE_SLAVE, 1, NULL, 0); */
-  /* //Serial.println("Registering send callback function"); */
-  /* esp_now_register_send_cb(onSent); */
-}
-
-void loop() {
-  digitalWrite(LED_BUILTIN, HIGH);  // turn the LED on (HIGH is the voltage level)
-  takeRangeReading();               //Tell the sensor to perform a ranging cycle
-  delay(1000);                      //Wait for sensor to finish
-  digitalWrite(LED_BUILTIN, LOW);   // turn the LED on (HIGH is the voltage level)
-
-
-  int range = requestRange();  //Get the range from the sensor
-  myMessage.range = range;
-  myMessage.sensorID = 16;
-  sendToMaster();
-
-  /* Serial.println(range); */
-  //analogWrite(9, (262.2857-0.3643*range));
-  // changeAddress(0x70,0x20,0);
-
-  // Serial.println("Send a new message");
-  /* esp_now_send(NULL, (uint8_t *) &myMessage, sizeof(myMessage)); */
-  delay(150);
+  return 0;
 }
 
 
@@ -137,7 +152,7 @@ int sendToMaster() {
   Serial.print("Range: ");
   Serial.println(myMessage.range);
 
-  String dataStr = "sensorID=" + String(myMessage.sensorID) + "&range=" + String(myMessage.range);
+  String dataStr = "sensorID=" + String(myMessage.sensorID) + "&range=" + String(myMessage.range) + "&motion="  + String(myMessage.motion) ;
   String url = "/data?" + dataStr;
   Serial.println(url);
 
@@ -165,6 +180,28 @@ int sendToMaster() {
   return 0;
 }
 
+int requestMotion() {
+  int state;
+  int val = digitalRead(MOTION_SENSOR_PIN);  // read sensor value
+  if (val == HIGH) {                         // check if the sensor is HIGH
+    digitalWrite(LED_BUILTIN, HIGH);         // turn LED ON
+    delay(500);                              // delay 100 milliseconds
+
+    if (state == LOW) {
+      Serial.println("Motion detected!");
+      state = HIGH;  // update variable state to HIGH
+    }
+  } else {
+    digitalWrite(LED_BUILTIN, LOW);  // turn LED OFF
+    delay(500);                      // delay 200 milliseconds
+
+    if (state == HIGH) {
+      Serial.println("Motion stopped!");
+      state = LOW;  // update variable state to LOW
+    }
+  }
+  return state;
+}
 
 //Commands the sensor to take a range reading
 void takeRangeReading() {
