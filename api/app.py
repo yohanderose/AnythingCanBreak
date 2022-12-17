@@ -9,17 +9,20 @@ from flask_restful import Api
 from flask_cors import CORS
 from threading import Thread
 from subprocess import Popen, PIPE
+from dotenv import load_dotenv
+load_dotenv()
 
 
 def find_audio_file(id) -> str:
     files = os.listdir(SOUNDS_DIR)
     for file in files:
-        if re.match(f"SPEAKER{id}.*", file):
+        if re.match(f"SPEAKER{id}_.*", file):
             return os.path.join(SOUNDS_DIR, file)
 
     return "file not found"
 
 
+HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = "./api/sounds"
 sound_sensors = [f"{i}" for i in range(1, 17)]
 
@@ -38,7 +41,8 @@ class ExhibitArea:
 
     def play_audio(self):
         while self.person_detected:
-            cmd = f"ffplay -nodisp {self.audio_file}"
+            cmd = f"ffmpeg -i {self.audio_file} -f audiotoolbox -audio_device_index 1 -"
+            print(cmd)
             self.p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
             self.p.wait()
 
@@ -111,4 +115,4 @@ def data():
 
 
 if __name__ == '__main__':
-    app.run(debug=True, host='172.20.10.5', port=5000)
+    app.run(debug=True, host=f'{HOST_IP}', port=5000)

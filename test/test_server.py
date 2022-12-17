@@ -1,8 +1,11 @@
+import os
 import time
 import requests
 from flask import jsonify
+from dotenv import load_dotenv
+load_dotenv()
 
-HOSTNAME = "http://172.20.10.5"
+HOSTNAME = f"http://{os.getenv('HOST_IP')}"
 # HOSTNAME = "https://0a80-2001-44c8-4134-762-da69-323d-eb95-3fba.ngrok.io"
 PORT = 5000
 
@@ -30,8 +33,7 @@ def test_arduino_serial_output():
     r = requests.get(url)
     assert r.status_code == 200
 
-
-test_arduino_serial_output()
+# test_arduino_serial_output()
 
 
 def test_area1_sound():
@@ -57,4 +59,6 @@ def test_area1_sound():
     stop_url = f"{url}?sensorID=1&range=10&motion=0"
     r = requests.get(stop_url)
     assert r.status_code == 200
+
+
 # test_area1_sound()

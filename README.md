@@ -23,7 +23,8 @@ Art exhibit where sensors monitor an area, and plays different sounds depending 
     - Flask
     - Flask CORS
     - Flask API
-    - ffmpeg
+	- Requests
+- ffmpeg
 
 ### Run
 
