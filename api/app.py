@@ -41,8 +41,7 @@ class ExhibitArea:
 
     def play_audio(self):
         while self.person_detected:
-            cmd = f"ffmpeg -i {self.audio_file} -f audiotoolbox -audio_device_index 1 -"
-            print(cmd)
+            cmd = f'ffmpeg -i {self.audio_file} -ac 2 -filter_complex "[0:a]pan=stereo|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f alsa hw:1,0'
             self.p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
             self.p.wait()
 

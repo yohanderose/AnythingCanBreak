@@ -59,6 +59,26 @@ def test_area1_sound():
     stop_url = f"{url}?sensorID=1&range=10&motion=0"
     r = requests.get(stop_url)
     assert r.status_code == 200
-
-
 # test_area1_sound()
+
+
+def test_area2_sound():
+    r = None
+    url = None
+    if HOSTNAME.startswith("https"):
+        url = f"{HOSTNAME}/data"
+    else:
+        url = f"{HOSTNAME + ':' + str(PORT)}/data"
+
+    # data = {"sensorID": "1", "range": "10"}
+    # r = requests.post(url, json=data)
+    start_url = f"{url}?sensorID=2&range=100&motion=1"
+    r = requests.get(start_url)
+    # print(r.json())
+    assert r.status_code == 200
+
+    time.sleep(3)
+
+    stop_url = f"{url}?sensorID=2&range=10&motion=0"
+    r = requests.get(stop_url)
+    assert r.status_code == 200
