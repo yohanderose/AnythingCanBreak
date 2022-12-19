@@ -11,15 +11,13 @@ A4 -------- TD (SDA) DT>D4
 #include <ESP8266HTTPClient.h>
 #include <ArduinoJson.h>
 #include <SPI.h>
-#include <espnow.h>
 
 
-// RNGFND1_TYPE = 2 for I2C
-/* #define RNGFND1_TYPE 2 */
-/* #define RNGFND1_ADDR GYUS42_ADDRESS */
-/* #define RNGFND1_SCALING 12.12 */
-/* #define RNGFND1_MIN_CM 20 */
-/* #define RNGFND1_MAX_CM 500 */
+//The Arduino Wire library uses the 7-bit version of the address, so the code example uses 0x70 instead of the 8-bit 0xE0
+#define SensorAddress byte(0x70)
+//The sensors ranging command has a value of 0x51
+#define RangeCommand byte(0x51)
+//These are the two commands that need to be sent in sequence to change the sensor address
 #define ChangeAddressCommand1 byte(0xAA)
 #define ChangeAddressCommand2 byte(0xA5)
 
@@ -67,10 +65,14 @@ void setup() {
 
 void loop() {
 
-  myMessage.motion = digitalRead(motionSensorPin);
-  Serial.println(myMessage.motion);
+  initRangeRead();
   delay(100);
+  requestMotion();
+  requestRange();
 
+  sendToMaster();
+
+  delay(200);
 }
 
 int sendToMaster() {
@@ -103,27 +105,43 @@ int sendToMaster() {
   return 0;
 }
 
-void requestMotion() {
+int requestMotion() {
   int val = digitalRead(motionSensorPin);  // read sensor value
-  if (val == HIGH) {                       // check if the sensor is HIGH
-    digitalWrite(LED_BUILTIN, HIGH);       // turn LED ON
-    delay(500);                            // delay 100 milliseconds
 
+  if (val == HIGH) {                  // check if the sensor is HIGH
+    digitalWrite(LED_BUILTIN, HIGH);  // turn LED ON
     if (myMessage.motion == LOW) {
       Serial.println("Motion detected!");
       myMessage.motion = HIGH;  // update variable myMessage.motion to HIGH
     }
-  } else {
-    digitalWrite(LED_BUILTIN, LOW);  // turn LED OFF
-    delay(500);                      // delay 200 milliseconds
-
-    if (myMessage.motion == HIGH) {
-      Serial.println("Motion stopped!");
-      myMessage.motion = LOW;  // update variable myMessage.motion to LOW
-    }
+    return 0;
   }
-  Serial.print("Motion: ");
-  Serial.println(myMessage.motion);
+
+  digitalWrite(LED_BUILTIN, LOW);  // turn LED OFF
+  if (myMessage.motion == HIGH) {
+    Serial.println("Motion stopped!");
+    myMessage.motion = LOW;  // update variable myMessage.motion to LOW
+  }
+  return 0;
+}
+//Commands the sensor to take a range reading
+void initRangeRead() {
+  Wire.beginTransmission(SensorAddress);  //Start addressing
+  Wire.write(RangeCommand);               //send range command
+  Wire.endTransmission();                 //Stop and do something else now
+}
+
+//Gets recently determined range in centimeters. Returns -1 if no communication.
+int requestRange() {
+  Wire.requestFrom(SensorAddress, byte(2));
+  if (Wire.available() >= 2) {                           //Sensor responded with the two bytes
+    int range_highbyte = Wire.read();                    //Read the high byte back
+    int range_lowbyte = Wire.read();                     //Read the low byte back
+    myMessage.range = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
+    return 0;
+  } else {
+    return -1;
+  }
 }
 
 
@@ -170,3 +188,4 @@ int connectToWiFi() {
 
   return 0;
 }
+
