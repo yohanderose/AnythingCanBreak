@@ -54,7 +54,7 @@ def test_area1_sound():
     # print(r.json())
     assert r.status_code == 200
 
-    time.sleep(3)
+    time.sleep(2)
 
     stop_url = f"{url}?sensorID=1&range=10&motion=0"
     r = requests.get(stop_url)
@@ -77,7 +77,7 @@ def test_area2_sound():
     # print(r.json())
     assert r.status_code == 200
 
-    time.sleep(3)
+    time.sleep(2)
 
     stop_url = f"{url}?sensorID=2&range=10&motion=0"
     r = requests.get(stop_url)
