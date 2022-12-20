@@ -29,7 +29,7 @@ typedef struct Message {
 };
 
 
-const int deviceID = 16;
+const int deviceID = 1;
 const bool transmitData = false;
 const uint8_t motionSensorPin = D2;
 Message myMessage;
@@ -37,7 +37,7 @@ Message myMessage;
 WiFiClient client;
 char ssid[] = "yohan_phone";       // your network SSID (name)
 char pass[] = "testing123";        // your network password
-char HOST_NAME[] = "172.20.10.5";  // hostname of web server:
+char HOST_NAME[] = "172.20.10.14";  // hostname of web server:
 int status = WL_IDLE_STATUS;       // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
@@ -48,6 +48,7 @@ void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(motionSensorPin, INPUT);
+  myMessage.sensorID = deviceID;
 
   Serial.begin(115200);  //Open serial connection at 115200 baud
 

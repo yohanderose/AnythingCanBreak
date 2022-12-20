@@ -33,17 +33,20 @@ class ExhibitArea:
         # self.motion_id = id
         self.person_detected = False
         self.audio_file = find_audio_file(id)
+        self.proc = None
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
-        if self.person_detected == False:
-            self.p.terminate()
+        if self.person_detected == False and self.proc:
+            self.proc.wait()
+            self.proc.terminate()
+            self.proc = None
 
     def play_audio(self):
         while self.person_detected:
-            cmd = f'ffmpeg -i {self.audio_file} -ac 2 -filter_complex "[0:a]pan=stereo|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f alsa hw:1,0'
-            self.p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
-            self.p.wait()
+            cmd = f'ffmpeg -i {self.audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+            self.proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+            self.proc.wait()
 
 
 area_map = {f"{sound_id}": ExhibitArea(sound_id) for sound_id in sound_sensors}
@@ -89,18 +92,16 @@ def data():
             res = f"sensorID: {sensorID_}, range: {range_}, motion: {motion_}"
             log.write(f"{dt.now()} | ({origin}) {res}\n")
             print(f"{dt.now()} | ({origin}) {res}")
-
             area = area_map[sensorID_]
             thread = area_thread_map[sensorID_]
-            if int(range_) > 30 and int(motion_) == 1:  # or/and motion detected
-                if not area.person_detected:
+
+            if int(motion_) == 1:  # or/and range < floor distance - height
+                if not area.person_detected and not thread.is_alive():
                     area.set_person_detected(True)
                     thread.start()
             else:
-                if thread.is_alive():
+                if area.person_detected and thread.is_alive():
                     area.set_person_detected(False)
-                    thread.join()
-                    # Reset because threads can be only started once
                     area_thread_map[sensorID_] = Thread(
                         target=area_map[sensorID_].play_audio)
 
