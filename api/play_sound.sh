@@ -13,5 +13,5 @@ fi
 
 # if mac
 if [ "$(uname -s)" == "Darwin" ]; then
-	ffmpeg -i $audio_file -ac 2 -filter_complex "[0:a]pan=stereo|c$output_channel=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -
+	ffmpeg -i $audio_file -ac 16 -filter_complex "[0:a]pan=16c|c$output_channel=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -
 fi
