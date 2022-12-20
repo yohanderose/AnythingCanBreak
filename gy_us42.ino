@@ -5,7 +5,6 @@
 #define GY_US42_CMD_READ 0x52     //Read command
 #define GY_US42_CMD_RESET 0x00    //Reset command
 
-
 #include <Wire.h>
 
 
@@ -17,13 +16,13 @@ void setup() {
 void loop() {
 
   Serial.print("Distance: ");
-  Serial.print(getDistance());
+  Serial.print(getDistance1());
   Serial.println(" cm");
 
   delay(1000);
 }
 
-int getDistance() {
+int getDistance1() {
   int distance = -1;
 
   Wire.beginTransmission(GY_US42);
@@ -45,3 +44,8 @@ int getDistance() {
   return distance;
 }
 
+// Pulse mode
+int getDistance2() {
+
+
+}

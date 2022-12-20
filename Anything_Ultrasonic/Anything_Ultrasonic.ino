@@ -49,14 +49,13 @@ void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(motionSensorPin, INPUT);
   myMessage.sensorID = deviceID;
+  Wire.begin();
 
   Serial.begin(115200);  //Open serial connection at 115200 baud
 
   while (!Serial) {
     ;  // wait for serial port to connect. Needed for native USB port only
   }
-  Wire.begin();
-  /* changeAddress(GYUS42_ADDRESS, 0x40, 0); */
 
   if (transmitData) {
     WiFi.mode(WIFI_STA);
