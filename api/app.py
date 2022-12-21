@@ -16,6 +16,7 @@ load_dotenv()
 
 INIT_CALIBRATION_SECONDS = 30
 CALIBRATION_DONE = False
+APPROX_CEILING_HEIGHT = 240
 start_time = dt.now()
 HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
@@ -40,8 +41,7 @@ class ExhibitArea:
         self.person_detected = False
         self.audio_file = find_audio_file(id)
         self.proc = None
-        self.floor_range = None
-        self.trigger_range = None
+        self.calibrate_range(APPROX_CEILING_HEIGHT)
 
     def calibrate_range(self, floor_range_reading):
         self.floor_range = floor_range_reading
@@ -108,11 +108,7 @@ def data():
             thread = area_thread_map[sensorID_]
 
             if CALIBRATION_DONE:
-                if motion_ == 1:  # or/and range < floor distance - height
-                    if not area.person_detected and not thread.is_alive():
-                        area.set_person_detected(True)
-                        thread.start()
-                elif (range_) <= area.trigger_range:
+                if motion_ == 1 or range_ <= area.trigger_range:  # or/and range < floor distance - height
                     if not area.person_detected and not thread.is_alive():
                         area.set_person_detected(True)
                         thread.start()
