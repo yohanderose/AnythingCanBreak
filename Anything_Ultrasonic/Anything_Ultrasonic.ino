@@ -20,10 +20,12 @@ A4 -------- TD (SDA) DT>D4
 //These are the two commands that need to be sent in sequence to change the sensor address
 #define ChangeAddressCommand1 byte(0xAA)
 #define ChangeAddressCommand2 byte(0xA5)
+#define APPROX_CEIL_HEIGHT 240
 
 // Mac address of the slave
 typedef struct Message {
   int sensorID = 0;
+  long lastRange = APPROX_CEIL_HEIGHT;
   long range = 0;
   int motion = 0;
 };
@@ -35,10 +37,10 @@ const uint8_t motionSensorPin = D2;
 Message myMessage;
 
 WiFiClient client;
-char ssid[] = "anythingcanbreaknet";       // your network SSID (name)
-char pass[] = "48881722";        // your network password
-char HOST_NAME[] = "192.168.0.101";  // hostname of web server:
-int status = WL_IDLE_STATUS;       // the Wifi radio's status
+char ssid[] = "anythingcanbreaknet";  // your network SSID (name)
+char pass[] = "48881722";             // your network password
+char HOST_NAME[] = "192.168.0.101";   // hostname of web server:
+int status = WL_IDLE_STATUS;          // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
   // Serial.println("Status:");
@@ -70,9 +72,10 @@ void loop() {
   requestMotion();
   requestRange();
 
-  sendToMaster();
-
-  delay(100);
+  // Smoothing filter to avoid echo interference ~5cm threshold
+  if (abs(myMessage.lastRange - myMessage.range) < 5) {
+    sendToMaster();
+  }
 }
 
 int sendToMaster() {
@@ -133,9 +136,10 @@ void initRangeRead() {
 //Gets recently determined range in centimeters. Returns -1 if no communication.
 int requestRange() {
   Wire.requestFrom(SensorAddress, byte(2));
-  if (Wire.available() >= 2) {                           //Sensor responded with the two bytes
-    int range_highbyte = Wire.read();                    //Read the high byte back
-    int range_lowbyte = Wire.read();                     //Read the low byte back
+  if (Wire.available() >= 2) {         //Sensor responded with the two bytes
+    int range_highbyte = Wire.read();  //Read the high byte back
+    int range_lowbyte = Wire.read();   //Read the low byte back
+    myMessage.lastRange = myMessage.range; //Update previous state
     myMessage.range = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
     return 0;
   } else {
@@ -187,4 +191,3 @@ int connectToWiFi() {
 
   return 0;
 }
-

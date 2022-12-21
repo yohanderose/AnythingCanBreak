@@ -36,7 +36,7 @@ def test_server():
     assert r.status_code == 200
 
 
-def test_arduino_serial_output():
+def test_request():
     r = None
     url = None
     if HOSTNAME.startswith("https"):
@@ -46,7 +46,7 @@ def test_arduino_serial_output():
 
     # data = {"sensorID": "1", "range": "10"}
     # r = requests.post(url, json=data)
-    url = f"{url}?sensorID=1&range=10&motion=0"
+    url = f"{url}?sensorID=1&range=0&motion=0"
     r = requests.get(url)
     assert r.status_code == 200
 
@@ -73,7 +73,7 @@ def test_area1_api():
 
     time.sleep(2)
 
-    stop_url = f"{url}?sensorID=1&range=10&motion=0"
+    stop_url = f"{url}?sensorID=1&range=0&motion=0"
     r = requests.get(stop_url)
     assert r.status_code == 200
 # test_area1_sound()

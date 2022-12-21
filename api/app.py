@@ -14,9 +14,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-INIT_CALIBRATION_SECONDS = 60
+INIT_CALIBRATION_SECONDS = 10
+CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
-APPROX_CEILING_HEIGHT = 240
 start_time = dt.now()
 HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
@@ -35,13 +35,14 @@ def find_audio_file(id) -> str:
 
 
 class ExhibitArea:
-    def __init__(self, id):
+    def __init__(self, id, approx_floor_height=240):
         self.sound_id = id
         # self.motion_id = id
         self.person_detected = False
         self.audio_file = find_audio_file(id)
         self.proc = None
-        self.calibrate_range(APPROX_CEILING_HEIGHT)
+        self.calibrate_range(approx_floor_height)
+        self.last_range = approx_floor_height
 
     def calibrate_range(self, floor_range_reading):
         self.floor_range = floor_range_reading
@@ -89,7 +90,11 @@ def index():
 @app.route('/data', methods=['GET'])
 def data():
     # read data from encoded url
-    global CALIBRATION_DONE, INIT_CALIBRATION_SECONDS
+    global CALIBRATION_DONE, INIT_CALIBRATION_SECONDS, start_time, CALIBRATION_STARTED
+
+    if not CALIBRATION_STARTED:
+        start_time = dt.now()
+        CALIBRATION_STARTED = True
 
     with open('/tmp/arduino_worker.log', 'a+') as log:
         res = ""
@@ -105,10 +110,17 @@ def data():
             thread = area_thread_map[sensorID_]
 
             if CALIBRATION_DONE:
-                if range_ <= area.trigger_range:  # or/and range < floor distance - height
-                    if not area.person_detected and not thread.is_alive():
-                        area.set_person_detected(True)
-                        thread.start()
+                if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
+                    # 5cm consistency check, additional filter
+                    if abs(range_ - area.last_range) < 5:
+                        if not area.person_detected and not thread.is_alive():
+                            area.set_person_detected(True)
+                            thread.start()
+                    area.last_range = range_
+                # elif motion_ == 1:
+                #     if not area.person_detected and not thread.is_alive():
+                #         area.set_person_detected(True)
+                #         thread.start()
                 else:
                     area.set_person_detected(False)
                     area_thread_map[sensorID_] = Thread(
@@ -118,7 +130,7 @@ def data():
                 if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:
                     CALIBRATION_DONE = True
 
-            res = f"({origin}) sensorID: {sensorID_}, range: {range_}, motion: {motion_}, calibrated: {CALIBRATION_DONE}"
+            res = f"({origin}) sensorID: {sensorID_}, range: {range_}, trigger_range {area.trigger_range}, motion: {motion_}, calibrated: {CALIBRATION_DONE}"
             print(f"{dt.now()} | {res}")
             log.write(f"{dt.now()} | {res}")
             return jsonify({"status": "ok"})
