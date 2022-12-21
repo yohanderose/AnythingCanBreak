@@ -38,7 +38,6 @@ class ExhibitArea:
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
         if self.person_detected == False and self.proc:
-            self.proc.wait()
             self.proc.terminate()
             self.proc = None
 
@@ -96,7 +95,7 @@ def data():
             thread = area_thread_map[sensorID_]
 
             if int(motion_) == 1:  # or/and range < floor distance - height
-                if not area.person_detected and not thread.is_alive():
+                if not area.person_detected:
                     area.set_person_detected(True)
                     thread.start()
             else:
