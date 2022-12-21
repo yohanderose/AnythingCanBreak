@@ -1,6 +1,7 @@
 # Simple flask API to read arduino serial data
 # and send it to the client
 import time
+from datetime import datetime as dt
 import os
 import re
 from datetime import datetime as dt
@@ -13,6 +14,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+INIT_CALIBRATION_SECONDS = 30
+CALIBRATION_DONE = False
+start_time = dt.now()
 HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
 sound_sensors = [f"{i}" for i in range(1, 17)]
@@ -36,6 +40,12 @@ class ExhibitArea:
         self.person_detected = False
         self.audio_file = find_audio_file(id)
         self.proc = None
+        self.floor_range = None
+        self.trigger_range = None
+
+    def calibrate_range(self, floor_range_reading):
+        self.floor_range = floor_range_reading
+        self.trigger_range = floor_range_reading - 60
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
@@ -79,6 +89,7 @@ def index():
 @app.route('/data', methods=['GET'])
 def data():
     # read data from encoded url
+    global CALIBRATION_DONE, INIT_CALIBRATION_SECONDS
 
     with open('/tmp/arduino_worker.log', 'a+') as log:
         res = ""
@@ -87,8 +98,8 @@ def data():
             # sensorID_ = request.get_json(force=True)['sensorID']
             # range_ = request.get_json(force=True)['range']
             sensorID_ = request.args.get('sensorID')
-            range_ = request.args.get('range')
-            motion_ = request.args.get('motion')
+            range_ = int(request.args.get('range'))
+            motion_ = int(request.args.get('motion'))
 
             res = f"sensorID: {sensorID_}, range: {range_}, motion: {motion_}"
             log.write(f"{dt.now()} | ({origin}) {res}\n")
@@ -96,14 +107,23 @@ def data():
             area = area_map[sensorID_]
             thread = area_thread_map[sensorID_]
 
-            if int(motion_) == 1:  # or/and range < floor distance - height
-                if not area.person_detected and not thread.is_alive():
-                    area.set_person_detected(True)
-                    thread.start()
+            if CALIBRATION_DONE:
+                if motion_ == 1:  # or/and range < floor distance - height
+                    if not area.person_detected and not thread.is_alive():
+                        area.set_person_detected(True)
+                        thread.start()
+                elif (range_) <= area.trigger_range:
+                    if not area.person_detected and not thread.is_alive():
+                        area.set_person_detected(True)
+                        thread.start()
+                else:
+                    area.set_person_detected(False)
+                    area_thread_map[sensorID_] = Thread(
+                        target=area_map[sensorID_].play_audio)
             else:
-                area.set_person_detected(False)
-                area_thread_map[sensorID_] = Thread(
-                    target=area_map[sensorID_].play_audio)
+                area.calibrate_range(range_)
+                if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:
+                    CALIBRATION_DONE = True
 
             return jsonify({"status": "ok"})
         except Exception as e:
