@@ -37,7 +37,7 @@ Message myMessage;
 WiFiClient client;
 char ssid[] = "anythingcanbreaknet";       // your network SSID (name)
 char pass[] = "48881722";        // your network password
-char HOST_NAME[] = "169.254.189.99";  // hostname of web server:
+char HOST_NAME[] = "192.168.0.101";  // hostname of web server:
 int status = WL_IDLE_STATUS;       // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {

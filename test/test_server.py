@@ -46,7 +46,7 @@ def test_arduino_serial_output():
 
     # data = {"sensorID": "1", "range": "10"}
     # r = requests.post(url, json=data)
-    url = f"{url}?sensorID=1&range=10&motion=1"
+    url = f"{url}?sensorID=1&range=10&motion=0"
     r = requests.get(url)
     assert r.status_code == 200
 

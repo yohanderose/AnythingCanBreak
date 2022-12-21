@@ -13,6 +13,13 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+HOST_IP = os.getenv("HOST_IP")
+SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
+sound_sensors = [f"{i}" for i in range(1, 17)]
+FFMPEG_OUT = open("/tmp/ffmpeg_out", 'a+')
+FFMPEG_ERR = open("/tmp/ffmpeg_err", 'a+')
+
+
 def find_audio_file(id) -> str:
     files = os.listdir(SOUNDS_DIR)
     for file in files:
@@ -20,11 +27,6 @@ def find_audio_file(id) -> str:
             return os.path.join(SOUNDS_DIR, file)
 
     return "file not found"
-
-
-HOST_IP = os.getenv("HOST_IP")
-SOUNDS_DIR = "./api/sounds"
-sound_sensors = [f"{i}" for i in range(1, 17)]
 
 
 class ExhibitArea:
@@ -39,12 +41,12 @@ class ExhibitArea:
         self.person_detected = person_detected
         if self.person_detected == False and self.proc:
             self.proc.terminate()
-            self.proc = None
 
     def play_audio(self):
         while self.person_detected:
             cmd = f'ffmpeg -i {self.audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
-            self.proc = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
+            self.proc = Popen(
+                cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
             self.proc.wait()
 
 
@@ -95,7 +97,7 @@ def data():
             thread = area_thread_map[sensorID_]
 
             if int(motion_) == 1:  # or/and range < floor distance - height
-                if not area.person_detected:
+                if not area.person_detected and not thread.is_alive():
                     area.set_person_detected(True)
                     thread.start()
             else:
