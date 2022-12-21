@@ -35,8 +35,8 @@ const uint8_t motionSensorPin = D2;
 Message myMessage;
 
 WiFiClient client;
-char ssid[] = "acb_net";       // your network SSID (name)
-char pass[] = "";        // your network password
+char ssid[] = "anythingcanbreaknet";       // your network SSID (name)
+char pass[] = "48881722";        // your network password
 char HOST_NAME[] = "169.254.189.99";  // hostname of web server:
 int status = WL_IDLE_STATUS;       // the Wifi radio's status
 
