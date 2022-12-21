@@ -19,27 +19,57 @@ CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
 start_time = dt.now()
 HOST_IP = os.getenv("HOST_IP")
-SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sounds')
+SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sound')
 sound_sensors = [f"{i}" for i in range(1, 17)]
 FFMPEG_OUT = open("/tmp/ffmpeg_out", 'a+')
 FFMPEG_ERR = open("/tmp/ffmpeg_err", 'a+')
 
 
-def find_audio_file(id) -> str:
-    files = os.listdir(SOUNDS_DIR)
-    for file in files:
-        if re.match(f"SPEAKER{id}_.*", file):
-            return os.path.join(SOUNDS_DIR, file)
+def find_audio_files() -> dict:
+    playlist = {}
+    for artist in os.listdir(SOUNDS_DIR):
+        files = os.listdir(os.path.join(SOUNDS_DIR, artist))
+        songs = []
+        for i in range(1, 17):
+            for file in files:
+                if file.startswith(f"speaker{i}."):
+                    songs.append(os.path.join(SOUNDS_DIR, artist, file))
 
-    return "file not found"
+        playlist[artist] = songs
 
+    return playlist
+
+
+playlist = find_audio_files()
+
+
+def get_artist_by_time(now) -> str:
+    for h in range(11, 21, 2):
+        if now.hour < h and now.minute < 30:
+            return "1"
+        if now.hour < h and now.minute > 30:
+            return "2"
+        if now.hour < h + 1 and now.minute < 30:
+            return "3"
+        if now.hour < h + 1 and now.minute > 30:
+            return "4"
+    return "4"
+
+
+# times = [
+#     dt(2022, 1, 1, 10, 0),
+#     dt(2022, 1, 1, 10, 30),
+#     dt(2022, 1, 1, 11, 0),
+#     dt(2022, 1, 1, 11, 30),
+# ]
+# for t in times:
+#     print(get_artist_by_time(t))
 
 class ExhibitArea:
     def __init__(self, id, approx_floor_height=240):
         self.sound_id = id
         # self.motion_id = id
         self.person_detected = False
-        self.audio_file = find_audio_file(id)
         self.proc = None
         self.calibrate_range(approx_floor_height)
         self.last_range = approx_floor_height
@@ -54,8 +84,11 @@ class ExhibitArea:
             self.proc.terminate()
 
     def play_audio(self):
+        artist = get_artist_by_time(dt.now())
+
+        cmd = f'ffmpeg -i {playlist[{artist}][self.sound_id - 1]} -ac 16 -filter_complex "[0:a]pan=16c|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+
         while self.person_detected:
-            cmd = f'ffmpeg -i {self.audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
             self.proc = Popen(
                 cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
             self.proc.wait()
@@ -64,15 +97,6 @@ class ExhibitArea:
 area_map = {f"{sound_id}": ExhibitArea(sound_id) for sound_id in sound_sensors}
 area_thread_map = {f"{sound_id}": Thread(
     target=area_map[sound_id].play_audio) for sound_id in sound_sensors}
-
-# area_map["1"].set_person_detected(True)
-# t = area_thread_map["1"]
-# t.start()
-
-# time.sleep(2)
-# if t.is_alive():
-#     area_map["1"].set_person_detected(False)
-#     t.join()
 
 
 # -------------------------------- FLASK API --------------------------------

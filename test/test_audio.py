@@ -4,19 +4,22 @@ import re
 from subprocess import Popen, PIPE
 
 
-SOUNDS_DIR = os.path.join(os.path.dirname(__file__), '../api/sounds/1')
+SOUNDS_DIR = os.path.join(os.path.dirname(__file__), '../api/sound')
 
 
-def find_audio_file(id) -> str:
-    files = os.listdir(SOUNDS_DIR)
-    for file in files:
-        if re.match(f"SPEAKER{id}_.*", file):
-            return os.path.join(SOUNDS_DIR, file)
+def find_audio_files() -> dict:
+    playlist = {}
+    for artist in os.listdir(SOUNDS_DIR):
+        files = os.listdir(os.path.join(SOUNDS_DIR, artist))
+        songs = []
+        for i in range(1, 17):
+            for file in files:
+                if file.startswith(f"speaker{i}."):
+                    songs.append(os.path.join(SOUNDS_DIR, artist, file))
 
-    return "file not found"
+        playlist[artist] = songs
 
-
-FILES = [find_audio_file(i+1) for i in range(16)]
+    return playlist
 
 
 def play_audio(file, channel):
@@ -27,8 +30,10 @@ def play_audio(file, channel):
 
 
 def test_all_audio():
-    for i in range(len(FILES)):
-        audio_file = FILES[i]
-        sound_id = i + 1
-        print(f'Playing {audio_file} on channel {sound_id}')
-        play_audio(audio_file, sound_id)
+    playlist = find_audio_files()
+    for artist in playlist.keys():
+        for i in range(16):
+            sound_id = i + 1
+            audio_file = playlist[artist][i]
+            print(f'Playing {audio_file} on channel {sound_id}')
+            play_audio(audio_file, sound_id)
