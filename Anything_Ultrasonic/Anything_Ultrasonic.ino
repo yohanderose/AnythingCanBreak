@@ -30,14 +30,14 @@ typedef struct Message {
 
 
 const int deviceID = 1;
-const bool transmitData = false;
+const bool transmitData = true;
 const uint8_t motionSensorPin = D2;
 Message myMessage;
 
 WiFiClient client;
-char ssid[] = "yohan_phone";       // your network SSID (name)
-char pass[] = "testing123";        // your network password
-char HOST_NAME[] = "172.20.10.14";  // hostname of web server:
+char ssid[] = "acb_net";       // your network SSID (name)
+char pass[] = "";        // your network password
+char HOST_NAME[] = "169.254.189.99";  // hostname of web server:
 int status = WL_IDLE_STATUS;       // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {

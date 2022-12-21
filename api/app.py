@@ -100,10 +100,9 @@ def data():
                     area.set_person_detected(True)
                     thread.start()
             else:
-                if area.person_detected and thread.is_alive():
-                    area.set_person_detected(False)
-                    area_thread_map[sensorID_] = Thread(
-                        target=area_map[sensorID_].play_audio)
+                area.set_person_detected(False)
+                area_thread_map[sensorID_] = Thread(
+                    target=area_map[sensorID_].play_audio)
 
             return jsonify({"status": "ok"})
         except Exception as e:
