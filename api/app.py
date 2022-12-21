@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
-INIT_CALIBRATION_SECONDS = 30
+INIT_CALIBRATION_SECONDS = 60
 CALIBRATION_DONE = False
 APPROX_CEILING_HEIGHT = 240
 start_time = dt.now()
@@ -101,14 +101,11 @@ def data():
             range_ = int(request.args.get('range'))
             motion_ = int(request.args.get('motion'))
 
-            res = f"sensorID: {sensorID_}, range: {range_}, motion: {motion_}"
-            log.write(f"{dt.now()} | ({origin}) {res}\n")
-            print(f"{dt.now()} | ({origin}) {res}")
             area = area_map[sensorID_]
             thread = area_thread_map[sensorID_]
 
             if CALIBRATION_DONE:
-                if motion_ == 1 or range_ <= area.trigger_range:  # or/and range < floor distance - height
+                if range_ <= area.trigger_range:  # or/and range < floor distance - height
                     if not area.person_detected and not thread.is_alive():
                         area.set_person_detected(True)
                         thread.start()
@@ -121,6 +118,9 @@ def data():
                 if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:
                     CALIBRATION_DONE = True
 
+            res = f"({origin}) sensorID: {sensorID_}, range: {range_}, motion: {motion_}, calibrated: {CALIBRATION_DONE}"
+            print(f"{dt.now()} | {res}")
+            log.write(f"{dt.now()} | {res}")
             return jsonify({"status": "ok"})
         except Exception as e:
             print(e)

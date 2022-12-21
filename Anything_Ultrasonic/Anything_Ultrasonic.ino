@@ -72,7 +72,7 @@ void loop() {
 
   sendToMaster();
 
-  delay(200);
+  delay(100);
 }
 
 int sendToMaster() {
@@ -94,7 +94,6 @@ int sendToMaster() {
     HTTPClient http;
     http.begin(client, HOST_NAME, port, url, true);
 
-    delay(500);
     int httpCode = http.GET();
     String payload = http.getString();  //Get the response payload
 
