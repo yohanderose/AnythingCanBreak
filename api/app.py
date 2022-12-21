@@ -13,8 +13,8 @@ from subprocess import Popen, PIPE
 from dotenv import load_dotenv
 load_dotenv()
 
-
-INIT_CALIBRATION_SECONDS = 10
+DEVELOPMENT = True
+INIT_CALIBRATION_SECONDS = 20
 CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
 start_time = dt.now()
@@ -92,13 +92,20 @@ def data():
     # read data from encoded url
     global CALIBRATION_DONE, INIT_CALIBRATION_SECONDS, start_time, CALIBRATION_STARTED
 
+    origin = request.remote_addr
+
     if not CALIBRATION_STARTED:
         start_time = dt.now()
         CALIBRATION_STARTED = True
 
+    if DEVELOPMENT:
+        CALIBRATION_DONE = True
+        if origin != f"{HOST_IP}":
+            return jsonify({"status": "development"})
+
     with open('/tmp/arduino_worker.log', 'a+') as log:
         res = ""
-        origin = request.remote_addr
+
         try:
             # sensorID_ = request.get_json(force=True)['sensorID']
             # range_ = request.get_json(force=True)['range']
@@ -117,10 +124,10 @@ def data():
                             area.set_person_detected(True)
                             thread.start()
                     area.last_range = range_
-                # elif motion_ == 1:
-                #     if not area.person_detected and not thread.is_alive():
-                #         area.set_person_detected(True)
-                #         thread.start()
+                elif motion_ == 1:  # received valid motion reading
+                    if not area.person_detected and not thread.is_alive():
+                        area.set_person_detected(True)
+                        thread.start()
                 else:
                     area.set_person_detected(False)
                     area_thread_map[sensorID_] = Thread(

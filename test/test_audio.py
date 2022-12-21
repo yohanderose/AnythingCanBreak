@@ -4,7 +4,7 @@ import re
 from subprocess import Popen, PIPE
 
 
-SOUNDS_DIR = os.path.join(os.path.dirname(__file__), '../api/sounds')
+SOUNDS_DIR = os.path.join(os.path.dirname(__file__), '../api/sounds/1')
 
 
 def find_audio_file(id) -> str:

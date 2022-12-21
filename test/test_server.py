@@ -14,19 +14,6 @@ PORT = 5000
 proc = None
 
 
-@pytest.fixture(autouse=True)
-def run_around_tests():
-    global proc
-    proc = Popen(
-        f"python {os.path.join(os.path.dirname(__file__), '../api/app.py')}", shell=True, stdout=PIPE, stderr=PIPE)
-
-    time.sleep(3)
-    yield
-
-    if proc:
-        proc.terminate()
-
-
 def test_server():
     r = None
     if HOSTNAME.startswith("https"):
