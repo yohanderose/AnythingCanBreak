@@ -11,7 +11,7 @@ from subprocess import Popen, PIPE
 from dotenv import load_dotenv
 load_dotenv()
 
-DEVELOPMENT = False
+DEVELOPMENT = True
 INIT_CALIBRATION_SECONDS = 20
 CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
@@ -93,10 +93,9 @@ class ExhibitArea:
         channel = int(self.sound_id) - 1
         audio_file = playlist[artist][channel]
 
+        cmd = f'ffmpeg -i {audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{channel}=c0[a];[a]dynaudnorm=p=0.9:s=5[a_norm]" -map "[a_norm]" -f audiotoolbox -audio_device_index 1 -'
+
         while self.person_detected:
-
-            cmd = f'ffmpeg -i {audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{channel}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
-
             audio_log.write(f"{dt.now()}\n{cmd}\n" + ("-"*80) + '\n')
 
             self.proc = Popen(
@@ -105,10 +104,12 @@ class ExhibitArea:
 
     def fade_out(self):
         if self.proc:
-            # Kill ffmpeg process and fade audio out
-            cmd = f'ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 1 -filter_complex "[0:a]afade=t=out:st=0:d=1[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
-            self.fade = Popen(
-                cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
+            # # Kill ffmpeg process and fade audio out
+            # cmd = f'ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 1 -filter_complex "[0:a]afade=t=out:st=0:d=1[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+            # self.fade = Popen(
+            #     cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
+            self.proc.send_signal(2)
+            self.proc.terminate()
 
 
 area_map = {f"{sound_id}": ExhibitArea(sound_id) for sound_id in sound_sensors}
@@ -157,13 +158,13 @@ def data():
         thread = area_thread_map[sensorID_]
 
         if CALIBRATION_DONE:
-            if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
-                # 5cm consistency check, additional filter
+            if range_ > 0:  # received valid range reading
                 if DEVELOPMENT:
                     if not area.person_detected and not thread.is_alive():
                         area.set_person_detected(True)
                         thread.start()
-                elif abs(range_ - area.last_range) < 5:
+                # 5cm consistency check, additional filter
+                elif abs(range_ - area.last_range) < 5 and range_ <= area.trigger_range:
                     if not area.person_detected and not thread.is_alive():
                         area.set_person_detected(True)
                         thread.start()
@@ -172,10 +173,19 @@ def data():
                 if not area.person_detected and not thread.is_alive():
                     area.set_person_detected(True)
                     thread.start()
-            else:
-                area.set_person_detected(False)
-                area_thread_map[sensorID_] = Thread(
-                    target=area_map[sensorID_].play_audio)
+            elif abs(range_ - area.last_range) < 5:
+                if not area.person_detected and not thread.is_alive():
+                    area.set_person_detected(True)
+                    thread.start()
+            area.last_range = range_
+        elif motion_ == 1:  # received valid motion reading
+            if not area.person_detected and not thread.is_alive():
+                area.set_person_detected(True)
+                thread.start()
+        else:
+            area.set_person_detected(False)
+            area_thread_map[sensorID_] = Thread(
+                target=area_map[sensorID_].play_audio)
         else:
             area.calibrate_range(range_)
             if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:

@@ -53,14 +53,14 @@ def test_area1_api():
 
     # data = {"sensorID": "1", "range": "10"}
     # r = requests.post(url, json=data)
-    start_url = f"{url}?sensorID=1&range=100&motion=1"
+    start_url = f"{url}?sensorID=4&range=100&motion=1"
     r = requests.get(start_url)
     # print(r.json())
     assert r.status_code == 200
 
     time.sleep(2)
 
-    stop_url = f"{url}?sensorID=1&range=0&motion=0"
+    stop_url = f"{url}?sensorID=4&range=0&motion=0"
     r = requests.get(stop_url)
     assert r.status_code == 200
 
