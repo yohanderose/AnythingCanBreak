@@ -6,11 +6,8 @@ A5 -------- RC (SCL) CR>D3
 A4 -------- TD (SDA) DT>D4
 */
 #include "Wire.h"
-#include <Arduino.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
-#include <ArduinoJson.h>
-#include <SPI.h>
 
 
 //The Arduino Wire library uses the 7-bit version of the address, so the code example uses 0x70 instead of the 8-bit 0xE0
@@ -22,14 +19,12 @@ A4 -------- TD (SDA) DT>D4
 #define ChangeAddressCommand2 byte(0xA5)
 #define APPROX_CEIL_HEIGHT 240
 
-// Mac address of the slave
 typedef struct Message {
   int sensorID = 0;
-  long lastRange = APPROX_CEIL_HEIGHT;
+  long lastRange[3] = { APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT };
   long range = 0;
   int motion = 0;
 };
-
 
 const int deviceID = 1;
 const bool transmitData = true;
@@ -68,23 +63,26 @@ void setup() {
 void loop() {
 
   initRangeRead();
-  delay(100);
+  delay(70);
   requestMotion();
   requestRange();
 
   // Smoothing filter to avoid echo interference ~5cm threshold
-  if (abs(myMessage.lastRange - myMessage.range) < 5) {
-    sendToMaster();
-  }
+  sendToMaster();
 }
 
 int sendToMaster() {
-  Serial.print("ID: ");
-  Serial.println(myMessage.sensorID);
-  Serial.print("Range: ");
-  Serial.println(myMessage.range);
-  Serial.print("Motion: ");
-  Serial.println(myMessage.motion);
+  /* Serial.print("ID: "); */
+  /* Serial.println(myMessage.sensorID); */
+  /* Serial.print("Range: "); */
+  /* Serial.println(myMessage.range); */
+  /* Serial.print("Motion: "); */
+  /* Serial.println(myMessage.motion); */
+  if (abs(myMessage.lastRange[0] - myMessage.lastRange[1]) < 5 && abs(myMessage.lastRange[1] - myMessage.lastRange[2]) < 5) {
+    myMessage.range = myMessage.lastRange[2];
+  } else {
+    myMessage.range = 0;
+  }
 
   if (status == WL_CONNECTED && transmitData) {
 
@@ -136,11 +134,12 @@ void initRangeRead() {
 //Gets recently determined range in centimeters. Returns -1 if no communication.
 int requestRange() {
   Wire.requestFrom(SensorAddress, byte(2));
-  if (Wire.available() >= 2) {         //Sensor responded with the two bytes
-    int range_highbyte = Wire.read();  //Read the high byte back
-    int range_lowbyte = Wire.read();   //Read the low byte back
-    myMessage.lastRange = myMessage.range; //Update previous state
-    myMessage.range = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
+  if (Wire.available() >= 2) {                        //Sensor responded with the two bytes
+    int range_highbyte = Wire.read();                 //Read the high byte back
+    int range_lowbyte = Wire.read();                  //Read the low byte back
+    myMessage.lastRange[0] = myMessage.lastRange[1];  //Update previous state
+    myMessage.lastRange[1] = myMessage.lastRange[2];
+    myMessage.lastRange[2] = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
     return 0;
   } else {
     return -1;

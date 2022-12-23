@@ -22,11 +22,21 @@ def find_audio_files() -> dict:
     return playlist
 
 
-def play_audio(file, channel):
+def play_audio(file, channel, duration=2):
     cmd = f'ffmpeg -i {file} -ac 16 -filter_complex "[0:a]pan=16c|c{int(channel) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
     p = Popen(cmd, shell=True)
-    time.sleep(2)
+    time.sleep(duration)
     p.terminate()
+
+
+def test_all_speaker():
+    playlist = find_audio_files()
+    artist = "4"
+    for i in range(16):
+        sound_id = i + 1
+        audio_file = playlist[artist][i]
+        print(f'Playing {audio_file} on channel {sound_id}')
+        play_audio(audio_file, sound_id)
 
 
 def test_all_audio():

@@ -63,4 +63,6 @@ def test_area1_api():
     stop_url = f"{url}?sensorID=1&range=0&motion=0"
     r = requests.get(stop_url)
     assert r.status_code == 200
-# test_area1_sound()
+
+
+# test_area1_api()

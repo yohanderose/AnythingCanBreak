@@ -13,7 +13,7 @@ from subprocess import Popen, PIPE
 from dotenv import load_dotenv
 load_dotenv()
 
-DEVELOPMENT = True
+DEVELOPMENT = False
 INIT_CALIBRATION_SECONDS = 20
 CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
@@ -71,12 +71,15 @@ class ExhibitArea:
         # self.motion_id = id
         self.person_detected = False
         self.proc = None
+        self.floor_ranges = []
         self.calibrate_range(approx_floor_height)
         self.last_range = approx_floor_height
 
     def calibrate_range(self, floor_range_reading):
-        self.floor_range = floor_range_reading
-        self.trigger_range = floor_range_reading - 60
+        self.floor_ranges.append(floor_range_reading)
+        self.floor_ranges = sorted(self.floor_ranges)
+        self.trigger_range = self.floor_ranges[len(
+            self.floor_ranges) // 2] - 20
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
@@ -84,14 +87,22 @@ class ExhibitArea:
             self.proc.terminate()
 
     def play_audio(self):
-        artist = get_artist_by_time(dt.now())
+        global playlist
 
-        cmd = f'ffmpeg -i {playlist[{artist}][self.sound_id - 1]} -ac 16 -filter_complex "[0:a]pan=16c|c{int(self.sound_id) -1}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+        artist = get_artist_by_time(dt.now())
+        channel = int(self.sound_id) - 1
+        audio_file = playlist[artist][channel]
 
         while self.person_detected:
-            self.proc = Popen(
-                cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
-            self.proc.wait()
+            with open('/tmp/play_audio.log', 'a+') as audio_log:
+
+                cmd = f'ffmpeg -i {audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{channel}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+
+                audio_log.write(f"{dt.now()}\n{cmd}\n" + ("-"*80) + '\n')
+
+                self.proc = Popen(
+                    cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
+                self.proc.wait()
 
 
 area_map = {f"{sound_id}": ExhibitArea(sound_id) for sound_id in sound_sensors}
@@ -143,7 +154,11 @@ def data():
             if CALIBRATION_DONE:
                 if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
                     # 5cm consistency check, additional filter
-                    if abs(range_ - area.last_range) < 5:
+                    if DEVELOPMENT:
+                        if not area.person_detected and not thread.is_alive():
+                            area.set_person_detected(True)
+                            thread.start()
+                    elif abs(range_ - area.last_range) < 5:
                         if not area.person_detected and not thread.is_alive():
                             area.set_person_detected(True)
                             thread.start()
