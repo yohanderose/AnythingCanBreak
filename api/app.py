@@ -39,6 +39,8 @@ def find_audio_files() -> dict:
 
 
 playlist = find_audio_files()
+log = open('/tmp/arduino_worker.log', 'a+')
+audio_log = open('/tmp/play_audio.log', 'a+')
 
 
 def get_artist_by_time(now) -> str:
@@ -81,8 +83,8 @@ class ExhibitArea:
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
-        if self.person_detected == False and self.proc:
-            self.proc.terminate()
+        if self.person_detected == False:
+            self.fade_out()
 
     def play_audio(self):
         global playlist
@@ -92,15 +94,21 @@ class ExhibitArea:
         audio_file = playlist[artist][channel]
 
         while self.person_detected:
-            with open('/tmp/play_audio.log', 'a+') as audio_log:
 
-                cmd = f'ffmpeg -i {audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{channel}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+            cmd = f'ffmpeg -i {audio_file} -ac 16 -filter_complex "[0:a]pan=16c|c{channel}=c0[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
 
-                audio_log.write(f"{dt.now()}\n{cmd}\n" + ("-"*80) + '\n')
+            audio_log.write(f"{dt.now()}\n{cmd}\n" + ("-"*80) + '\n')
 
-                self.proc = Popen(
-                    cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
-                self.proc.wait()
+            self.proc = Popen(
+                cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
+            self.proc.wait()
+
+    def fade_out(self):
+        if self.proc:
+            # Kill ffmpeg process and fade audio out
+            cmd = f'ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 1 -filter_complex "[0:a]afade=t=out:st=0:d=1[a]" -map "[a]" -f audiotoolbox -audio_device_index 1 -'
+            self.fade = Popen(
+                cmd, shell=True, stdout=FFMPEG_OUT, stderr=FFMPEG_ERR)
 
 
 area_map = {f"{sound_id}": ExhibitArea(sound_id) for sound_id in sound_sensors}
@@ -115,12 +123,12 @@ api = Api(app)
 CORS(app)
 
 
-@app.route('/')
+@ app.route('/')
 def index():
     return "Hello World"
 
 
-@app.route('/data', methods=['GET'])
+@ app.route('/data', methods=['GET'])
 def data():
     # read data from encoded url
     global CALIBRATION_DONE, INIT_CALIBRATION_SECONDS, start_time, CALIBRATION_STARTED
@@ -136,51 +144,50 @@ def data():
         if origin != f"{HOST_IP}":
             return jsonify({"status": "development"})
 
-    with open('/tmp/arduino_worker.log', 'a+') as log:
-        res = ""
+    res = ""
 
-        try:
-            # sensorID_ = request.get_json(force=True)['sensorID']
-            # range_ = request.get_json(force=True)['range']
-            sensorID_ = request.args.get('sensorID')
-            range_ = int(request.args.get('range'))
-            motion_ = int(request.args.get('motion'))
+    try:
+        # sensorID_ = request.get_json(force=True)['sensorID']
+        # range_ = request.get_json(force=True)['range']
+        sensorID_ = request.args.get('sensorID')
+        range_ = int(request.args.get('range'))
+        motion_ = int(request.args.get('motion'))
 
-            area = area_map[sensorID_]
-            thread = area_thread_map[sensorID_]
+        area = area_map[sensorID_]
+        thread = area_thread_map[sensorID_]
 
-            if CALIBRATION_DONE:
-                if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
-                    # 5cm consistency check, additional filter
-                    if DEVELOPMENT:
-                        if not area.person_detected and not thread.is_alive():
-                            area.set_person_detected(True)
-                            thread.start()
-                    elif abs(range_ - area.last_range) < 5:
-                        if not area.person_detected and not thread.is_alive():
-                            area.set_person_detected(True)
-                            thread.start()
-                    area.last_range = range_
-                elif motion_ == 1:  # received valid motion reading
+        if CALIBRATION_DONE:
+            if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
+                # 5cm consistency check, additional filter
+                if DEVELOPMENT:
                     if not area.person_detected and not thread.is_alive():
                         area.set_person_detected(True)
                         thread.start()
-                else:
-                    area.set_person_detected(False)
-                    area_thread_map[sensorID_] = Thread(
-                        target=area_map[sensorID_].play_audio)
+                elif abs(range_ - area.last_range) < 5:
+                    if not area.person_detected and not thread.is_alive():
+                        area.set_person_detected(True)
+                        thread.start()
+                area.last_range = range_
+            elif motion_ == 1:  # received valid motion reading
+                if not area.person_detected and not thread.is_alive():
+                    area.set_person_detected(True)
+                    thread.start()
             else:
-                area.calibrate_range(range_)
-                if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:
-                    CALIBRATION_DONE = True
+                area.set_person_detected(False)
+                area_thread_map[sensorID_] = Thread(
+                    target=area_map[sensorID_].play_audio)
+        else:
+            area.calibrate_range(range_)
+            if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:
+                CALIBRATION_DONE = True
 
-            res = f"({origin}) sensorID: {sensorID_}, range: {range_}, trigger_range {area.trigger_range}, motion: {motion_}, calibrated: {CALIBRATION_DONE}"
-            print(f"{dt.now()} | {res}")
-            log.write(f"{dt.now()} | {res}")
-            return jsonify({"status": "ok"})
-        except Exception as e:
-            print(e)
-            log.write(f"{dt.now()} | {origin} Error: {e}\n")
+        res = f"({origin}) sensorID: {sensorID_}, range: {range_}, trigger_range {area.trigger_range}, motion: {motion_}, calibrated: {CALIBRATION_DONE}"
+        print(f"{dt.now()} | {res}")
+        log.write(f"{dt.now()} | {res}")
+        return jsonify({"status": "ok"})
+    except Exception as e:
+        print(e)
+        log.write(f"{dt.now()} | {origin} Error: {e}\n")
 
     # return error response
     return jsonify({"status": "error"})
