@@ -173,6 +173,16 @@ def data():
                 if not area.person_detected and not thread.is_alive():
                     area.set_person_detected(True)
                     thread.start()
+            # 5cm consistency check, additional filter
+            elif abs(range_ - area.last_range) < 5 and range_ <= area.trigger_range:
+                if not area.person_detected and not thread.is_alive():
+                    area.set_person_detected(True)
+                    thread.start()
+                area.last_range = range_
+            elif motion_ == 1:  # received valid motion reading
+                if not area.person_detected and not thread.is_alive():
+                    area.set_person_detected(True)
+                    thread.start()
             elif abs(range_ - area.last_range) < 5:
                 if not area.person_detected and not thread.is_alive():
                     area.set_person_detected(True)
