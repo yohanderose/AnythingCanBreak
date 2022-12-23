@@ -1,6 +1,6 @@
+
 /api/sounds/*
 /api/sound/*
-
 
 ### Git ###
 # Created by git for backups. To disable backups in Git:
@@ -11,10 +11,34 @@
 *.BACKUP.*
 *.BASE.*
 *.LOCAL.*
-*.REMOTE.* *_BACKUP_*.txt
+*.REMOTE.*
+*_BACKUP_*.txt
 *_BASE_*.txt
 *_LOCAL_*.txt
 *_REMOTE_*.txt
+
+### Go ###
+# If you prefer the allow list template instead of the deny list, see community template:
+# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
+#
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+# Dependency directories (remove the comment below to include it)
+# vendor/
+
+# Go workspace file
+go.work
 
 ### Python ###
 # Byte-compiled / optimized / DLL files
@@ -23,7 +47,6 @@ __pycache__/
 *$py.class
 
 # C extensions
-*.so
 
 # Distribution / packaging
 .Python
@@ -204,4 +227,4 @@ tags
 # Persistent undo
 [._]*.un~
 
-# End of https://www.toptal.com/developers/gitignore/api/git,vim,python
+# End of https://www.toptal.com/developers/gitignore/api/git,vim,python,go
