@@ -1,5 +1,3 @@
-# Simple flask API to read arduino serial data
-# and send it to the client
 import time
 from datetime import datetime as dt
 import os
@@ -47,11 +45,11 @@ def get_artist_by_time(now) -> str:
     for h in range(11, 21, 2):
         if now.hour < h and now.minute < 30:
             return "1"
-        if now.hour < h and now.minute > 30:
+        if now.hour < h and now.minute >= 30:
             return "2"
         if now.hour < h + 1 and now.minute < 30:
             return "3"
-        if now.hour < h + 1 and now.minute > 30:
+        if now.hour < h + 1 and now.minute >= 30:
             return "4"
     return "4"
 

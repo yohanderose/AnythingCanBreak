@@ -7,7 +7,7 @@ output_device=1
 
 # if linux
 if [ "$(uname)" == "Linux" ]; then
-	ffmpeg -i $audio_file -ac 2 -filter_complex "[0:a]pan=stereo|c$output_channel=c0[a]" -map "[a]" -f alsa hw:$output_device,0
+	ffmpeg -i $audio_file -ac 2 -filter_complex "[0:a]pan=stereo|c$output_channel=c0[a];[a]dynaudnorm=p=0.9:s=5[a_norm]" -map "[a_norm]" -f alsa hw:$output_device,0
 
 fi
 
