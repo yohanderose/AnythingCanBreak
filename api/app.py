@@ -11,8 +11,8 @@ from subprocess import Popen, PIPE
 from dotenv import load_dotenv
 load_dotenv()
 
-DEVELOPMENT = True
-INIT_CALIBRATION_SECONDS = 20
+DEVELOPMENT = False
+INIT_CALIBRATION_SECONDS = 10
 CALIBRATION_STARTED = False
 CALIBRATION_DONE = False
 start_time = dt.now()
@@ -158,44 +158,20 @@ def data():
         thread = area_thread_map[sensorID_]
 
         if CALIBRATION_DONE:
-            if range_ > 0:  # received valid range reading
-                if DEVELOPMENT:
-                    if not area.person_detected and not thread.is_alive():
-                        area.set_person_detected(True)
-                        thread.start()
-                # 5cm consistency check, additional filter
-                elif abs(range_ - area.last_range) < 5 and range_ <= area.trigger_range:
-                    if not area.person_detected and not thread.is_alive():
-                        area.set_person_detected(True)
-                        thread.start()
+            if range_ > 0 and range_ <= area.trigger_range:  # received valid range reading
+                if not thread.is_alive():
+                    area.set_person_detected(True)
+                    thread.start()
+                # 5cm consistency check first -> abs(range_ - area.last_range) < 5
                 area.last_range = range_
-            elif motion_ == 1:  # received valid motion reading
-                if not area.person_detected and not thread.is_alive():
-                    area.set_person_detected(True)
-                    thread.start()
-            # 5cm consistency check, additional filter
-            elif abs(range_ - area.last_range) < 5 and range_ <= area.trigger_range:
-                if not area.person_detected and not thread.is_alive():
-                    area.set_person_detected(True)
-                    thread.start()
-                area.last_range = range_
-            elif motion_ == 1:  # received valid motion reading
-                if not area.person_detected and not thread.is_alive():
-                    area.set_person_detected(True)
-                    thread.start()
-            elif abs(range_ - area.last_range) < 5:
-                if not area.person_detected and not thread.is_alive():
-                    area.set_person_detected(True)
-                    thread.start()
-            area.last_range = range_
-        elif motion_ == 1:  # received valid motion reading
-            if not area.person_detected and not thread.is_alive():
-                area.set_person_detected(True)
-                thread.start()
-        else:
-            area.set_person_detected(False)
-            area_thread_map[sensorID_] = Thread(
-                target=area_map[sensorID_].play_audio)
+            # elif motion_ == 1:  # received valid motion reading
+            #     if not area.person_detected and not thread.is_alive():
+            #         area.set_person_detected(True)
+            #         thread.start()
+            else:
+                area.set_person_detected(False)
+                area_thread_map[sensorID_] = Thread(
+                    target=area_map[sensorID_].play_audio)
         else:
             area.calibrate_range(range_)
             if (dt.now() - start_time).seconds > INIT_CALIBRATION_SECONDS:

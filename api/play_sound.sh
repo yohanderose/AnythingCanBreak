@@ -16,16 +16,16 @@ function fade_out  {
 	done
 
 	# kill the process
-	kill -9 $(ps -aux | grep "ffmpeg.*api/sound/4/speaker1.wav" | grep -v grep | awk '{print $2}')
+	kill -9 $(ps -aux | grep "ffmpeg.*$audio_file" | grep -v grep | awk '{print $2}')
 	# reset volume
 	amixer -c $output_device sset Master $current_volume%
 }
 
 # if linux
 if [ "$(uname)" == "Linux" ]; then
-	ffmpeg -i $audio_file -ac 2 -filter_complex "[0:a]pan=stereo|c$output_channel=c0[a];[a]dynaudnorm=p=0.9:s=5[a_norm]" -map "[a_norm]" -f alsa hw:$output_device,0 -loglevel quiet &
+	ffmpeg -i $audio_file -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c$output_channel=c0[b]" -map "[b]" -f alsa hw:$output_device,0 &
  
-	sleep 2
+	sleep 20
 	fade_out
 fi
 

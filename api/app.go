@@ -2,15 +2,20 @@ package main
 
 import (
 	"fmt"
-	// "io/ioutil"
-	// "log"
+	"github.com/joho/godotenv"
+	"net/http"
+	"os"
 	"os/exec"
-	"strings"
+	"strconv"
+	"sync"
 	"time"
-	// "net/http"
+	// "strings"
 )
 
 var SOUNDS_DIR = "sound"
+var APPROX_CEIL_HEIGHT = 240
+var areaMap = map[int]*ExhibitArea{}
+var wg sync.WaitGroup = sync.WaitGroup{}
 
 func getPlaylist() map[string][]string {
 	playlists := make(map[string][]string)
@@ -44,7 +49,7 @@ func getPlaylist() map[string][]string {
 
 var playlist = getPlaylist()
 
-func getArtistFromTimeofDay(now time.Time) string {
+func getArtistFromTimeOfDay(now time.Time) string {
 
 	for h := 11; h < 21; h++ {
 		switch {
@@ -65,55 +70,122 @@ type ExhibitArea struct {
 	id             int
 	personDetected bool
 	proc           exec.Cmd
+	triggerRange   int
 }
 
 func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 	exhibitArea.personDetected = personDetected
 
-	go func() {
+	func() {
 		if personDetected {
 			go playAudio(exhibitArea)
 		} else {
-			exhibitArea.proc.Process.Kill()
+			stopAudio(exhibitArea)
 		}
-
 	}()
 }
 
 func playAudio(exhibitArea *ExhibitArea) {
-	artist := getArtistFromTimeofDay(time.Now())
+	artist := getArtistFromTimeOfDay(time.Now())
 	channel := exhibitArea.id - 1
 	chanelString := fmt.Sprintf("%d", channel)
 	audioFile := playlist[artist][channel]
 	outputDevice := "1"
 
-	cmdString := `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]pan=stereo|c` + chanelString + `=c0[a];[a]dynaudnorm=p=0.9:s=5[a_norm]" -map "[a_norm]" -f alsa hw:` + outputDevice + `,0 -loglevel quiet &
-	`
+	cmdString := `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
 
-	fmt.Println(cmdString)
-	cmd := strings.Split(cmdString, " ")
-	exhibitArea.proc = *exec.Command(cmd[0], cmd[1:]...)
+	exhibitArea.proc = *exec.Command("sh", "-c", cmdString)
 
+	wg.Add(1)
 	exhibitArea.proc.Start()
 }
 
 func stopAudio(exhibitArea *ExhibitArea) {
+	// outputDevice := "1"
+	// chanelString := fmt.Sprintf("%d", exhibitArea.id-1)
+
+	// Fade out audio
+	// cmdString := `ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -t 1 -filter_complex "[0:a]afade=t=out:st=0:d=1[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
+
+	// fadeOut := *exec.Command("sh", "-c", cmdString)
+	// fadeOut.Start()
+	// fadeOut.Wait()
+
 	exhibitArea.proc.Process.Kill()
+	exhibitArea.proc.Wait()
+
+	// Reset to original volume
+	// cmdString = `ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -filter_complex "[0:a]volume=1[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
+	// resetVolume := *exec.Command("sh", "-c", cmdString)
+	// resetVolume.Start()
+	// resetVolume.Wait()
+	wg.Done()
 }
 
-var areaMap = map[int]*ExhibitArea{}
+func serveAPI() {
+	HOST_IP := os.Getenv("HOST_IP")
+	fmt.Println("HOST_IP: " + HOST_IP)
 
-func main() {
-	// http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-	// 	fmt.Fprintf(w, "Welcome to new server again!")
-	// })
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Welcome to new server again!")
+	})
+
+	// get request with area id
+	http.HandleFunc("/data", func(w http.ResponseWriter, r *http.Request) {
+		areaId_, _ := strconv.Atoi(r.URL.Query().Get("sensorID"))
+		range_, _ := strconv.Atoi(r.URL.Query().Get("range"))
+		// motion_, _ := strconv.Atoi(r.URL.Query().Get("motion"))
+
+		area, ok := areaMap[areaId_]
+		if !ok {
+			fmt.Fprintf(w, "Area not found")
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			if area.personDetected == false && range_ > 0 && range_ <= area.triggerRange {
+				setPersonDetected(area, true)
+			} else {
+				setPersonDetected(area, false)
+			}
+			w.WriteHeader(http.StatusOK)
+			w.Header().Set("Content-Type", "application/json")
+			fmt.Fprintf(w, `{"sensorID": %d, "range": %d}`, areaId_, range_)
+			return
+		}
+
+		return
+
+	})
+
+	http.ListenAndServe(HOST_IP+":5050", nil)
+}
+
+func loadExhibitAreas() map[int]*ExhibitArea {
+	// load exhibit areas from file
+	// for now, just hard code
+	areaMap_ := map[int]*ExhibitArea{}
 
 	for i := 1; i < 17; i++ {
-		areaMap[i] = &ExhibitArea{id: i}
+		areaMap_[i] = &ExhibitArea{
+			id:             i,
+			personDetected: false,
+			triggerRange:   APPROX_CEIL_HEIGHT,
+		}
+	}
+	return areaMap_
+}
+
+func main() {
+	// Load .env file
+	err := godotenv.Load("../.env")
+	if err != nil {
+		panic(err)
 	}
 
-	setPersonDetected(areaMap[1], true)
-	time.Sleep(5 * time.Second)
-	setPersonDetected(areaMap[1], false)
+	areaMap = loadExhibitAreas()
+	serveAPI()
+
+	// setPersonDetected(areaMap[1], true)
+	// time.Sleep(3 * time.Second)
+	// setPersonDetected(areaMap[1], false)
 
 }
