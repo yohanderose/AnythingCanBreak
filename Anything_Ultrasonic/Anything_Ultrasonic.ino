@@ -12,7 +12,6 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 
-
 //The Arduino Wire library uses the 7-bit version of the address, so the code example uses 0x70 instead of the 8-bit 0xE0
 #define SensorAddress byte(0x70)
 //The sensors ranging command has a value of 0x51
@@ -20,11 +19,12 @@
 //These are the two commands that need to be sent in sequence to change the sensor address
 #define ChangeAddressCommand1 byte(0xAA)
 #define ChangeAddressCommand2 byte(0xA5)
-#define APPROX_CEIL_HEIGHT 240
+#define APPROX_CEIL_HEIGHT 240    // cm
+#define CONTIGUOUS_ALLOWANCE 100  // cm
 
 struct Message {
   int sensorID = 0;
-  /* long lastRange[3] = { APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT }; */
+  long lastRange[3] = { APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT };
   long range = 0;
   int motion = 0;
 };
@@ -151,18 +151,17 @@ void initRangeRead() {
 }
 
 //Gets recently determined range in centimeters. Returns -1 if no communication.
-int requestRange() {
+void requestRange() {
   Wire.requestFrom(SensorAddress, byte(2));
   if (Wire.available() >= 2) {         //Sensor responded with the two bytes
     int range_highbyte = Wire.read();  //Read the high byte back
     int range_lowbyte = Wire.read();   //Read the low byte back
-                                       /* myMessage.lastRange[0] = myMessage.lastRange[1];  //Update previous state */
-                                       /* myMessage.lastRange[1] = myMessage.lastRange[2]; */
-                                       /* myMessage.lastRange[2] = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range */
-    myMessage.range = (range_highbyte * 256) + range_lowbyte;
-    return 0;
-  } else {
-    return -1;
+                                       // Update state
+    myMessage.lastRange[0] = myMessage.lastRange[1];
+    myMessage.lastRange[1] = myMessage.lastRange[2];
+    myMessage.lastRange[2] = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
+
+    myMessage.range = (abs(myMessage.lastRange[0] - myMessage.lastRange[1]) < CONTIGUOUS_ALLOWANCE && abs(myMessage.lastRange[1] - myMessage.lastRange[2]) < CONTIGUOUS_ALLOWANCE) ? myMessage.lastRange[2] : 0;
   }
 }
 
