@@ -22,6 +22,7 @@ var areaMap = loadExhibitAreas()
 var wg sync.WaitGroup = sync.WaitGroup{}
 var CALBRATION_SECONDS = 10
 var startTime = time.Now()
+var ffmpegLog = getFfmpegLog()
 
 func getPlaylist() map[string][]string {
 	playlists := make(map[string][]string)
@@ -80,6 +81,14 @@ func getArtistFromTimeOfDay(now time.Time) string {
 	return "4"
 }
 
+func getFfmpegLog() *os.File {
+	f, err := os.OpenFile("/tmp/go_ffmpeg", os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
+	if err != nil {
+		panic(err)
+	}
+	return f
+}
+
 type ExhibitArea struct {
 	id                  int
 	personDetected      bool
@@ -101,37 +110,39 @@ func calibrateRange(exhibitArea *ExhibitArea, val int) {
 
 func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 	exhibitArea.personDetected = personDetected
-
-	func() {
-		if personDetected {
-			go playAudio(exhibitArea)
-		} else {
-			stopAudio(exhibitArea)
-		}
-	}()
+	if !exhibitArea.personDetected {
+		stopAudio(exhibitArea)
+	}
 }
 
 func playAudio(exhibitArea *ExhibitArea) {
-	// artist := getArtistFromTimeOfDay(time.Now())
-	artist := "4"
+	wg.Add(1)
+
+	artist := getArtistFromTimeOfDay(time.Now())
+	// artist := "4"
 	channel := exhibitArea.id - 1
 	chanelString := fmt.Sprintf("%d", channel)
 	audioFile := playlist[artist][channel]
 	outputDevice := "1"
 
-	// cmdString := `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
-
 	cmdString := ""
-	if artist != "4" {
-		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-	} else {
-		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.2[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-	}
+
+	// 	if artist != "4" {
+	// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+	// 	} else {
+	// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.2[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+	// 	}
+
+	cmdString = `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
+	// fmt.Println(cmdString)
+	// write to log
+
+	ffmpegLog.WriteString(time.Now().String() + " | " + cmdString + "\n")
 
 	exhibitArea.proc = *exec.Command("sh", "-c", cmdString)
 
-	wg.Add(1)
 	exhibitArea.proc.Start()
+	exhibitArea.proc.Wait()
 }
 
 func stopAudio(exhibitArea *ExhibitArea) {
@@ -147,6 +158,8 @@ func stopAudio(exhibitArea *ExhibitArea) {
 
 	exhibitArea.proc.Process.Kill()
 	exhibitArea.proc.Wait()
+
+	ffmpegLog.WriteString(time.Now().String() + " | " + "Killed " + strconv.Itoa(exhibitArea.id) + "\n")
 
 	// Reset to original volume
 	// cmdString = `ffmpeg -f lavfi -i anullsrc=channel_layout=stereo:sample_rate=44100 -filter_complex "[0:a]volume=1[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
@@ -235,8 +248,11 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 
 	for i := 1; i < 17; i++ {
 		areaMap_[i] = &ExhibitArea{
-			id:             i,
-			personDetected: false,
+			id:                  i,
+			personDetected:      false,
+			calibrationStarted:  false,
+			calibrationFinished: false,
+			startTime:           time.Now(),
 		}
 		calibrateRange(areaMap_[i], APPROX_CEIL_HEIGHT)
 	}
@@ -250,12 +266,15 @@ func main() {
 		panic(err)
 	}
 
-	serveAPI()
+	// go serveAPI()
 
-	// setPersonDetected(areaMap[1], true)
-	// setPersonDetected(areaMap[2], true)
-	// time.Sleep(5 * time.Second)
-	// setPersonDetected(areaMap[1], false)
-	// setPersonDetected(areaMap[2], false)
+	go playAudio(areaMap[2])
+	time.Sleep(2 * time.Second)
+	go playAudio(areaMap[1])
+	time.Sleep(2 * time.Second)
 
+	stopAudio(areaMap[1])
+	stopAudio(areaMap[2])
+
+	wg.Wait()
 }

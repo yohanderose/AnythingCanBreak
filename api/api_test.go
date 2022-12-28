@@ -1,15 +1,15 @@
 package main
 
 import (
+	"fmt"
+	"github.com/joho/godotenv"
 	"net/http"
 	"os"
 	"testing"
 	"time"
-	"fmt"
-	"github.com/joho/godotenv"
 )
 
-var PORT = "5000"
+var PORT = "3000"
 
 func TestHttpReq(t *testing.T) {
 	err := godotenv.Load("../.env")
@@ -19,7 +19,6 @@ func TestHttpReq(t *testing.T) {
 
 	HOST_IP := os.Getenv("HOST_IP")
 
-
 	// detected
 	resp, err := http.Get("http://" + HOST_IP + ":" + PORT + "/data?sensorID=1&range=150")
 	if err != nil {
@@ -28,8 +27,8 @@ func TestHttpReq(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected %d, got %d", http.StatusOK, resp.StatusCode)
 	} else {
-			t.Logf("Starting %d ...", 1)
-		}
+		t.Logf("Starting %d ...", 1)
+	}
 
 	time.Sleep(2 * time.Second)
 
@@ -41,7 +40,7 @@ func TestHttpReq(t *testing.T) {
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected %d, got %d", http.StatusOK, resp.StatusCode)
 	} else {
-			t.Logf("Stopping %d ...", 1)
+		t.Logf("Stopping %d ...", 1)
 	}
 
 }
@@ -53,7 +52,6 @@ func TestAllSoundsHttpReq(t *testing.T) {
 	}
 
 	HOST_IP := os.Getenv("HOST_IP")
-
 
 	for i := 1; i < 17; i++ {
 		sensorID := fmt.Sprintf("%d", i)
@@ -89,7 +87,6 @@ func TestConcurrentHttpReq(t *testing.T) {
 	}
 
 	HOST_IP := os.Getenv("HOST_IP")
-
 
 	for i := 1; i < 17; i++ {
 		sensorID := fmt.Sprintf("%d", i)

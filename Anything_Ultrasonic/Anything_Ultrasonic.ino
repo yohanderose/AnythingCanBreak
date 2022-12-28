@@ -1,9 +1,12 @@
 /*
-PRO MINI-----------GYUS42
-VCC ---------- 5V    VCC>5V 
-GND  --------- GND   GND>GND
-A5 -------- RC (SCL) CR>D3
-A4 -------- TD (SDA) DT>D4
+	PRO MINI-----------GYUS42
+	VCC ---------- 5V    VCC>5V 
+	GND  --------- GND   GND>GND
+	A5 -------- RC (SCL) CR>D3
+	A4 -------- TD (SDA) DT>D4
+
+
+	287377 bytes (27%) with delay
 */
 #include "Wire.h"
 #include <ESP8266WiFi.h>
@@ -19,9 +22,9 @@ A4 -------- TD (SDA) DT>D4
 #define ChangeAddressCommand2 byte(0xA5)
 #define APPROX_CEIL_HEIGHT 240
 
-typedef struct Message {
+struct Message {
   int sensorID = 0;
-  long lastRange[3] = { APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT };
+  /* long lastRange[3] = { APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT, APPROX_CEIL_HEIGHT }; */
   long range = 0;
   int motion = 0;
 };
@@ -34,13 +37,44 @@ Message myMessage;
 WiFiClient client;
 char ssid[] = "anythingcanbreaknet";  // your network SSID (name)
 char pass[] = "48881722";             // your network password
-char HOST_NAME[] = "192.168.0.99";   // hostname of web server:
+char HOST_NAME[] = "192.168.0.99";    // hostname of web server:
 int status = WL_IDLE_STATUS;          // the Wifi radio's status
 
 void onSent(uint8_t *mac_addr, uint8_t sendStatus) {
   // Serial.println("Status:");
   // Serial.println(sendStatus);
 }
+
+/* int main() { */
+/*   pinMode(LED_BUILTIN, OUTPUT); */
+/*   pinMode(motionSensorPin, INPUT); */
+/*   myMessage.sensorID = deviceID; */
+/*   Wire.begin(); */
+
+/*   Serial.begin(115200);  //Open serial connection at 115200 baud */
+
+/*   while (!Serial) { */
+/*     ;  // wait for serial port to connect. Needed for native USB port only */
+/*   } */
+
+/*   if (transmitData) { */
+/*     WiFi.mode(WIFI_STA); */
+/*     connectToWiFi(); */
+/*   } */
+
+/*   while (true) { */
+/* 	  initRangeRead(); */
+
+/* 	  for (long i = 0; i < 50000; i++) { */
+/* 		  asm(""); */
+/* 	  } */
+/* 	  /1* requestMotion(); *1/ */
+/* 	  requestRange(); */
+
+/* 	  // Smoothing filter to avoid echo interference ~5cm threshold */
+/* 	  sendToMaster(); */
+/*   } */
+/* } */
 
 void setup() {
   pinMode(LED_BUILTIN, OUTPUT);
@@ -64,31 +98,18 @@ void loop() {
 
   initRangeRead();
   delay(70);
-  requestMotion();
   requestRange();
+  /* requestMotion(); */
 
-  // Smoothing filter to avoid echo interference ~5cm threshold
   sendToMaster();
 }
 
-int sendToMaster() {
-  /* Serial.print("ID: "); */
-  /* Serial.println(myMessage.sensorID); */
-  /* Serial.print("Range: "); */
-  /* Serial.println(myMessage.range); */
-  /* Serial.print("Motion: "); */
-  /* Serial.println(myMessage.motion); */
-  if (abs(myMessage.lastRange[0] - myMessage.lastRange[1]) < 5 && abs(myMessage.lastRange[1] - myMessage.lastRange[2]) < 5) {
-    myMessage.range = myMessage.lastRange[2];
-  } else {
-    myMessage.range = 0;
-  }
+void sendToMaster() {
+  String dataStr = "sensorID=" + String(myMessage.sensorID) + "&range=" + String(myMessage.range) + "&motion=" + String(myMessage.motion);
+  String url = "/data?" + dataStr;
+  Serial.println(url);
 
   if (status == WL_CONNECTED && transmitData) {
-
-    String dataStr = "sensorID=" + String(myMessage.sensorID) + "&range=" + String(myMessage.range) + "&motion=" + String(myMessage.motion);
-    String url = "/data?" + dataStr;
-    Serial.println(url);
 
     Serial.print("Starting data transmission ... ");
     int port = 5000;
@@ -101,8 +122,6 @@ int sendToMaster() {
     Serial.println(httpCode);
     Serial.println(payload);
   }
-
-  return 0;
 }
 
 int requestMotion() {
@@ -134,12 +153,13 @@ void initRangeRead() {
 //Gets recently determined range in centimeters. Returns -1 if no communication.
 int requestRange() {
   Wire.requestFrom(SensorAddress, byte(2));
-  if (Wire.available() >= 2) {                        //Sensor responded with the two bytes
-    int range_highbyte = Wire.read();                 //Read the high byte back
-    int range_lowbyte = Wire.read();                  //Read the low byte back
-    myMessage.lastRange[0] = myMessage.lastRange[1];  //Update previous state
-    myMessage.lastRange[1] = myMessage.lastRange[2];
-    myMessage.lastRange[2] = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range
+  if (Wire.available() >= 2) {         //Sensor responded with the two bytes
+    int range_highbyte = Wire.read();  //Read the high byte back
+    int range_lowbyte = Wire.read();   //Read the low byte back
+                                       /* myMessage.lastRange[0] = myMessage.lastRange[1];  //Update previous state */
+                                       /* myMessage.lastRange[1] = myMessage.lastRange[2]; */
+                                       /* myMessage.lastRange[2] = (range_highbyte * 256) + range_lowbyte;  //Make a 16-bit word out of the two bytes for the range */
+    myMessage.range = (range_highbyte * 256) + range_lowbyte;
     return 0;
   } else {
     return -1;
@@ -181,8 +201,7 @@ int connectToWiFi() {
     Serial.println(ssid);
     // Connect to WPA/WPA2 network:
     status = WiFi.begin(ssid, pass);
-    // wait 10 seconds for connection:
-    delay(10000);
+    delay(5000);
   }
 
   // you're connected now, so print out the data:
@@ -190,3 +209,4 @@ int connectToWiFi() {
 
   return 0;
 }
+
