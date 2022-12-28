@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"github.com/joho/godotenv"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
+	"regexp"
 	"strconv"
 	"sync"
 	"time"
@@ -14,7 +16,7 @@ import (
 
 var SOUNDS_DIR = "sound"
 var APPROX_CEIL_HEIGHT = 240
-var areaMap = map[int]*ExhibitArea{}
+var areaMap = loadExhibitAreas()
 var wg sync.WaitGroup = sync.WaitGroup{}
 
 func getPlaylist() map[string][]string {
@@ -24,9 +26,17 @@ func getPlaylist() map[string][]string {
 
 	for i := 1; i < 5; i++ {
 		artist := fmt.Sprintf("%d", i)
+		files, err := ioutil.ReadDir(SOUNDS_DIR + "/" + artist)
+		if err != nil {
+			fmt.Println(err)
+
+		}
+
+		re := regexp.MustCompile(`\.(mp3|wav|ogg|aif)$`)
+		ext := re.FindAllString(files[0].Name(), -1)
 
 		for j := 0; j < 16; j++ {
-			trackFile := SOUNDS_DIR + "/" + artist + "/speaker" + fmt.Sprintf("%d", j+1) + ".wav"
+			trackFile := SOUNDS_DIR + "/" + artist + "/speaker" + fmt.Sprintf("%d", j+1) + ext[0]
 			playlists[artist] = append(playlists[artist], trackFile)
 		}
 
@@ -139,7 +149,6 @@ func serveAPI() {
 		area, ok := areaMap[areaId_]
 		if !ok {
 			fmt.Fprintf(w, "Area not found")
-			w.WriteHeader(http.StatusNotFound)
 		} else {
 			if area.personDetected == false && range_ > 0 && range_ <= area.triggerRange {
 				setPersonDetected(area, true)
@@ -147,7 +156,6 @@ func serveAPI() {
 				setPersonDetected(area, false)
 			}
 			w.WriteHeader(http.StatusOK)
-			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"sensorID": %d, "range": %d}`, areaId_, range_)
 			return
 		}
@@ -181,11 +189,10 @@ func main() {
 		panic(err)
 	}
 
-	areaMap = loadExhibitAreas()
 	serveAPI()
 
 	// setPersonDetected(areaMap[1], true)
-	// time.Sleep(3 * time.Second)
+	// time.Sleep(2 * time.Second)
 	// setPersonDetected(areaMap[1], false)
 
 }
