@@ -2,15 +2,17 @@ package main
 
 import (
 	"fmt"
-	"github.com/joho/godotenv"
 	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"regexp"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
+
+	"github.com/joho/godotenv"
 	// "strings"
 )
 
@@ -18,6 +20,10 @@ var SOUNDS_DIR = "sound"
 var APPROX_CEIL_HEIGHT = 240
 var areaMap = loadExhibitAreas()
 var wg sync.WaitGroup = sync.WaitGroup{}
+var CALIBRATION_STARTED = false
+var CALIBRATION_DONE = false
+var CALBRATION_SECONDS = 10
+var startTime = time.Now()
 
 func getPlaylist() map[string][]string {
 	playlists := make(map[string][]string)
@@ -81,6 +87,15 @@ type ExhibitArea struct {
 	personDetected bool
 	proc           exec.Cmd
 	triggerRange   int
+	_floorRanges   []int
+	floorRange	   int 
+}
+
+func calibrateRange(exhibitArea *ExhibitArea, val int) {
+	exhibitArea._floorRanges = (append(exhibitArea._floorRanges, val))
+	sort.Ints(exhibitArea._floorRanges)
+	exhibitArea.floorRange = exhibitArea._floorRanges[len(exhibitArea._floorRanges) / 2]
+	exhibitArea.triggerRange = exhibitArea.floorRange - 20
 }
 
 func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
@@ -96,7 +111,8 @@ func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 }
 
 func playAudio(exhibitArea *ExhibitArea) {
-	artist := getArtistFromTimeOfDay(time.Now())
+	// artist := getArtistFromTimeOfDay(time.Now())
+	artist := "4"
 	channel := exhibitArea.id - 1
 	chanelString := fmt.Sprintf("%d", channel)
 	audioFile := playlist[artist][channel]
@@ -153,25 +169,39 @@ func serveAPI() {
 		range_, _ := strconv.Atoi(r.URL.Query().Get("range"))
 		// motion_, _ := strconv.Atoi(r.URL.Query().Get("motion"))
 
+		if !CALIBRATION_STARTED {
+			CALIBRATION_STARTED = true
+			startTime = time.Now()
+		}
+
 		area, ok := areaMap[areaId_]
 		if !ok {
 			fmt.Fprintf(w, "Area not found")
 		} else {
-			if area.personDetected == false && range_ > 0 && range_ <= area.triggerRange {
-				setPersonDetected(area, true)
+			if CALIBRATION_DONE {
+				if area.personDetected == false && range_ > 0 && range_ <= area.triggerRange {
+					setPersonDetected(area, true)
+				} else if area.personDetected == true && range_ == area.floorRange {
+					setPersonDetected(area, false)
+				}
+				w.WriteHeader(http.StatusOK)
+				fmt.Fprintf(w, `{"sensorID": %d, "range": %d}`, areaId_, range_)
+				return
 			} else {
-				setPersonDetected(area, false)
+				if range_ > 0 {
+					calibrateRange(area, range_)
+				}
+				if CALIBRATION_STARTED && (time.Now().After(startTime.Add(time.Duration(CALBRATION_SECONDS)))){ 
+					CALIBRATION_DONE = true
+				}
 			}
-			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"sensorID": %d, "range": %d}`, areaId_, range_)
-			return
 		}
 
 		return
 
 	})
 
-	http.ListenAndServe(HOST_IP+":5050", nil)
+	http.ListenAndServe(HOST_IP+":5000", nil)
 }
 
 func loadExhibitAreas() map[int]*ExhibitArea {
@@ -183,8 +213,8 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 		areaMap_[i] = &ExhibitArea{
 			id:             i,
 			personDetected: false,
-			triggerRange:   APPROX_CEIL_HEIGHT,
 		}
+		calibrateRange(areaMap_[i], APPROX_CEIL_HEIGHT)
 	}
 	return areaMap_
 }
@@ -199,7 +229,9 @@ func main() {
 	serveAPI()
 
 	// setPersonDetected(areaMap[1], true)
-	// time.Sleep(2 * time.Second)
+	// setPersonDetected(areaMap[2], true)
+	// time.Sleep(5 * time.Second)
 	// setPersonDetected(areaMap[1], false)
+	// setPersonDetected(areaMap[2], false)
 
 }
