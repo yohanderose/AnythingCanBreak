@@ -116,33 +116,36 @@ func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 }
 
 func playAudio(exhibitArea *ExhibitArea) {
-	wg.Add(1)
+	defer wg.Done()
+	for {
+		if !exhibitArea.personDetected {
+			break
+		}
+		artist := getArtistFromTimeOfDay(time.Now())
+		// artist := "4"
+		channel := exhibitArea.id - 1
+		chanelString := fmt.Sprintf("%d", channel)
+		audioFile := playlist[artist][channel]
 
-	artist := getArtistFromTimeOfDay(time.Now())
-	// artist := "4"
-	channel := exhibitArea.id - 1
-	chanelString := fmt.Sprintf("%d", channel)
-	audioFile := playlist[artist][channel]
-	outputDevice := "1"
+		cmdString := ""
 
-	cmdString := ""
+		// 	if artist != "4" {
+		// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+		// 	} else {
+		// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.2[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+		// 	}
 
-	// 	if artist != "4" {
-	// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-	// 	} else {
-	// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.2[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-	// 	}
+		cmdString = `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa default`
+		// fmt.Println(cmdString)
+		// write to log
 
-	cmdString = `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa hw:` + outputDevice + `,0`
-	// fmt.Println(cmdString)
-	// write to log
+		ffmpegLog.WriteString(time.Now().String() + " | " + cmdString + "\n")
 
-	ffmpegLog.WriteString(time.Now().String() + " | " + cmdString + "\n")
+		exhibitArea.proc = *exec.Command("sh", "-c", cmdString)
 
-	exhibitArea.proc = *exec.Command("sh", "-c", cmdString)
-
-	exhibitArea.proc.Start()
-	exhibitArea.proc.Wait()
+		exhibitArea.proc.Start()
+		exhibitArea.proc.Wait()
+	}
 }
 
 func stopAudio(exhibitArea *ExhibitArea) {
@@ -157,7 +160,6 @@ func stopAudio(exhibitArea *ExhibitArea) {
 	// fadeOut.Wait()
 
 	exhibitArea.proc.Process.Kill()
-	exhibitArea.proc.Wait()
 
 	ffmpegLog.WriteString(time.Now().String() + " | " + "Killed " + strconv.Itoa(exhibitArea.id) + "\n")
 
@@ -166,7 +168,6 @@ func stopAudio(exhibitArea *ExhibitArea) {
 	// resetVolume := *exec.Command("sh", "-c", cmdString)
 	// resetVolume.Start()
 	// resetVolume.Wait()
-	wg.Done()
 }
 
 func processRequest(areaId_ int, range_ int) int {
@@ -268,13 +269,15 @@ func main() {
 
 	// go serveAPI()
 
+	setPersonDetected(areaMap[1], true)
+	setPersonDetected(areaMap[2], true)
+	wg.Add(2)
 	go playAudio(areaMap[2])
-	time.Sleep(2 * time.Second)
 	go playAudio(areaMap[1])
-	time.Sleep(2 * time.Second)
 
-	stopAudio(areaMap[1])
-	stopAudio(areaMap[2])
+	time.Sleep(4 * time.Second)
+	setPersonDetected(areaMap[1], false)
+	setPersonDetected(areaMap[2], false)
 
 	wg.Wait()
 }
