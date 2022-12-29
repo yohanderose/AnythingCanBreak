@@ -12,7 +12,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joho/godotenv"
+	"fyne.io/fyne/v2"
+
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/data/binding"
+	"fyne.io/fyne/v2/widget"
 	// "strings"
 )
 
@@ -92,6 +97,7 @@ func getFfmpegLog() *os.File {
 type ExhibitArea struct {
 	id                  int
 	personDetected      bool
+	bindPersonDetected  binding.String
 	proc                exec.Cmd
 	triggerRange        int
 	_floorRanges        []int
@@ -110,6 +116,7 @@ func calibrateRange(exhibitArea *ExhibitArea, val int) {
 
 func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 	exhibitArea.personDetected = personDetected
+	exhibitArea.bindPersonDetected.Set("Person detected: " + strconv.FormatBool(exhibitArea.personDetected))
 	if !exhibitArea.personDetected {
 		stopAudio(exhibitArea)
 	} else {
@@ -245,6 +252,48 @@ func serveAPI() {
 	http.ListenAndServe(HOST_IP+":5050", nil)
 }
 
+func runGUI() {
+	a := app.New()
+	w := a.NewWindow("ASM")
+
+	// Create fyne grid of areas with bindings to floor range, trigger range and personDetected
+	var areaBoxes [16]fyne.CanvasObject
+	for i := 1; i <= 16; i++ {
+		area, ok := areaMap[i]
+		if !ok {
+			fmt.Println("Area not found")
+		} else {
+			area.bindPersonDetected.Set("Person detected: " + strconv.FormatBool(area.personDetected))
+			title := widget.NewLabel("Area " + strconv.Itoa(area.id))
+			title.TextStyle = fyne.TextStyle{Bold: true}
+			intro := widget.NewLabelWithData(area.bindPersonDetected)
+			// intro.Wrapping = fyne.TextWrapWord
+
+			content := container.NewMax()
+
+			areaBoxes[i-1] = container.NewBorder(
+				container.NewVBox(
+					title,
+					widget.NewSeparator(),
+					intro,
+				), nil, nil, nil, content)
+		}
+	}
+
+	grid := container.NewGridWithColumns(4, areaBoxes[0], areaBoxes[1], areaBoxes[2], areaBoxes[3], areaBoxes[4], areaBoxes[5], areaBoxes[6], areaBoxes[7], areaBoxes[8], areaBoxes[9], areaBoxes[10], areaBoxes[11], areaBoxes[12], areaBoxes[13], areaBoxes[14], areaBoxes[15])
+
+	hello := widget.NewLabel("AnythingCanBreak System Monitor")
+	w.SetContent(container.NewVBox(
+		hello,
+		grid,
+		// widget.NewButton("Hi!", func() {
+		// 	hello.SetText("Welcome :)")
+		// }),
+	))
+
+	w.ShowAndRun()
+}
+
 func loadExhibitAreas() map[int]*ExhibitArea {
 	// load exhibit areas from file
 	// for now, just hard code
@@ -254,6 +303,7 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 		areaMap_[i] = &ExhibitArea{
 			id:                  i,
 			personDetected:      false,
+			bindPersonDetected:  binding.NewString(),
 			calibrationStarted:  false,
 			calibrationFinished: false,
 			startTime:           time.Now(),
@@ -264,13 +314,15 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 }
 
 func main() {
-	// Load .env file
-	err := godotenv.Load("../.env")
-	if err != nil {
-		panic(err)
-	}
+	// // Load .env file
+	// err := godotenv.Load("../.env")
+	// if err != nil {
+	// 	panic(err)
+	// }
 
-	// go serveAPI()
+	// // go serveAPI()
+	// // runGUI()
 
-	wg.Wait()
+	// wg.Wait()
+	runGUI()
 }
