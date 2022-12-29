@@ -66,7 +66,7 @@ var playlist = getPlaylist()
 
 func getArtistFromTimeOfDay(now time.Time) string {
 
-	for h := 11; h < 21; h++ {
+	for h := 11; h < 21; h += 2 {
 		switch {
 		case now.Hour() < h && now.Minute() < 30:
 			return "1"
@@ -112,6 +112,9 @@ func setPersonDetected(exhibitArea *ExhibitArea, personDetected bool) {
 	exhibitArea.personDetected = personDetected
 	if !exhibitArea.personDetected {
 		stopAudio(exhibitArea)
+	} else {
+		wg.Add(1)
+		go playAudio(exhibitArea)
 	}
 }
 
@@ -268,16 +271,6 @@ func main() {
 	}
 
 	// go serveAPI()
-
-	setPersonDetected(areaMap[1], true)
-	setPersonDetected(areaMap[2], true)
-	wg.Add(2)
-	go playAudio(areaMap[2])
-	go playAudio(areaMap[1])
-
-	time.Sleep(4 * time.Second)
-	setPersonDetected(areaMap[1], false)
-	setPersonDetected(areaMap[2], false)
 
 	wg.Wait()
 }
