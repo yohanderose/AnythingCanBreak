@@ -44,7 +44,7 @@ area_thread_map = {f"{sound_id}": Thread(
 
 
 def process(area, thread, range_):
-    if not area.calbration_started:
+    if not area.calibration_started:
         area.calibration_started = True
         area.start_time = dt.now()
 
@@ -58,18 +58,18 @@ def process(area, thread, range_):
         #     if not area.person_detected and not thread.is_alive():
         #         area.set_person_detected(True)
         #         thread.start()
-        elif abs(range_ - area.floor_range) < 5:
+        elif abs(range_ - area.floor_range) < 20:
             if area.person_detected:
                 area.set_person_detected(False)
-                area_thread_map[area.sensorID] = Thread(
-                    target=area_map[area.sensorID].play_audio)
+                area_thread_map[area.sound_id] = Thread(
+                    target=area_map[area.sound_id].play_audio)
     else:
         area.calibrate_range(range_)
         if (dt.now() - area.start_time).seconds > INIT_CALIBRATION_SECONDS:
             area.calibration_finished = True
             area.set_person_detected(False)
-            area_thread_map[area.sensorID] = Thread(
-                target=area_map[area.sensorID].play_audio)
+            area_thread_map[area.sound_id] = Thread(
+                target=area_map[area.sound_id].play_audio)
 
 
 # t = area_thread_map["1"]

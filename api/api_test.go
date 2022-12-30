@@ -2,14 +2,15 @@ package main
 
 import (
 	"fmt"
-	"github.com/joho/godotenv"
 	"net/http"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
-var PORT = "3000"
+var PORT = "5000"
 
 func TestHttpReq(t *testing.T) {
 	err := godotenv.Load("../.env")

@@ -5,6 +5,8 @@ import (
 	// "os/exec"
 	"testing"
 	"time"
+
+	"fyne.io/fyne/v2/data/binding"
 )
 
 func TestGetArtistFromTimeOfDay1(t *testing.T) {
@@ -79,7 +81,14 @@ func TestGetArtistFromTimeOfDay4(t *testing.T) {
 }
 
 func TestPlayAudio(t *testing.T) {
-	testArea := ExhibitArea{id: 1}
+	testArea := ExhibitArea{
+		id:                  1,
+		personDetected:      false,
+		bindPersonDetected:  binding.NewString(),
+		calibrationStarted:  true,
+		calibrationFinished: true,
+		startTime:           time.Now(),
+	}
 
 	setPersonDetected(&testArea, true)
 	time.Sleep(2 * time.Second)
@@ -87,7 +96,14 @@ func TestPlayAudio(t *testing.T) {
 }
 
 func TestReplayAudio(t *testing.T) {
-	testArea := ExhibitArea{id: 2}
+	testArea := ExhibitArea{
+		id:                  2,
+		personDetected:      false,
+		bindPersonDetected:  binding.NewString(),
+		calibrationStarted:  true,
+		calibrationFinished: true,
+		startTime:           time.Now(),
+	}
 
 	setPersonDetected(&testArea, true)
 	time.Sleep(2 * time.Second)
@@ -99,8 +115,22 @@ func TestReplayAudio(t *testing.T) {
 }
 
 func TestConcurrentPlayAudio(t *testing.T) {
-	testArea1 := ExhibitArea{id: 1}
-	testArea2 := ExhibitArea{id: 2}
+	testArea1 := ExhibitArea{
+		id:                  1,
+		personDetected:      false,
+		bindPersonDetected:  binding.NewString(),
+		calibrationStarted:  true,
+		calibrationFinished: true,
+		startTime:           time.Now(),
+	}
+	testArea2 := ExhibitArea{
+		id:                  2,
+		personDetected:      false,
+		bindPersonDetected:  binding.NewString(),
+		calibrationStarted:  true,
+		calibrationFinished: true,
+		startTime:           time.Now(),
+	}
 
 	setPersonDetected(&testArea1, true)
 	setPersonDetected(&testArea2, true)

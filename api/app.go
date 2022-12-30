@@ -12,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joho/godotenv"
+
 	"fyne.io/fyne/v2"
 
 	"fyne.io/fyne/v2/app"
@@ -25,7 +27,7 @@ var SOUNDS_DIR = "sound"
 var APPROX_CEIL_HEIGHT = 240
 var areaMap = loadExhibitAreas()
 var wg sync.WaitGroup = sync.WaitGroup{}
-var CALBRATION_SECONDS = 10
+var CALBRATION_SECONDS = 5
 var startTime = time.Now()
 var ffmpegLog = getFfmpegLog()
 
@@ -95,16 +97,17 @@ func getFfmpegLog() *os.File {
 }
 
 type ExhibitArea struct {
-	id                  int
-	personDetected      bool
-	bindPersonDetected  binding.String
-	proc                exec.Cmd
-	triggerRange        int
-	_floorRanges        []int
-	floorRange          int
-	calibrationStarted  bool
-	calibrationFinished bool
-	startTime           time.Time
+	id                      int
+	personDetected          bool
+	bindPersonDetected      binding.String
+	proc                    exec.Cmd
+	triggerRange            int
+	_floorRanges            []int
+	floorRange              int
+	calibrationStarted      bool
+	calibrationFinished     bool
+	bindCalibrationFinished binding.String
+	startTime               time.Time
 }
 
 func calibrateRange(exhibitArea *ExhibitArea, val int) {
@@ -136,16 +139,17 @@ func playAudio(exhibitArea *ExhibitArea) {
 		channel := exhibitArea.id - 1
 		chanelString := fmt.Sprintf("%d", channel)
 		audioFile := playlist[artist][channel]
+		outputDevice := "1"
 
 		cmdString := ""
 
-		// 	if artist != "4" {
-		// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-		// 	} else {
-		// 		cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.2[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
-		// 	}
+		if artist != "4" {
+			cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.6[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+		} else {
+			cmdString = `ffmpeg -i ` + audioFile + ` -ac 16 -filter_complex "[0:a]loudnorm=I=-14:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b];[b]volume=1.4[c]" -map "[c]" -f audiotoolbox -audio_device_index ` + outputDevice + ` -`
+		}
 
-		cmdString = `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa default`
+		// cmdString = `ffmpeg -i ` + audioFile + ` -ac 2 -filter_complex "[0:a]loudnorm=I=-16:LRA=5:TP=-1.5[a];[a]pan=stereo|c` + chanelString + `=c0[b]" -map "[b]" -f alsa default`
 		// fmt.Println(cmdString)
 		// write to log
 
@@ -202,6 +206,7 @@ func processRequest(areaId_ int, range_ int) int {
 			}
 			if area.calibrationStarted && (time.Now().After(startTime.Add(time.Duration(CALBRATION_SECONDS)))) {
 				area.calibrationFinished = true
+				area.bindCalibrationFinished.Set("Calibrated: " + strconv.FormatBool(area.personDetected))
 			}
 
 		}
@@ -249,7 +254,7 @@ func serveAPI() {
 		})
 	}
 
-	http.ListenAndServe(HOST_IP+":5050", nil)
+	http.ListenAndServe(HOST_IP+":5000", nil)
 }
 
 func runGUI() {
@@ -263,10 +268,13 @@ func runGUI() {
 		if !ok {
 			fmt.Println("Area not found")
 		} else {
+			area.bindCalibrationFinished.Set("Calibrated: " + strconv.FormatBool(area.personDetected))
 			area.bindPersonDetected.Set("Person detected: " + strconv.FormatBool(area.personDetected))
 			title := widget.NewLabel("Area " + strconv.Itoa(area.id))
 			title.TextStyle = fyne.TextStyle{Bold: true}
-			intro := widget.NewLabelWithData(area.bindPersonDetected)
+			calibrated := widget.NewLabelWithData(area.bindCalibrationFinished)
+			detected := widget.NewLabelWithData(area.bindPersonDetected)
+
 			// intro.Wrapping = fyne.TextWrapWord
 
 			content := container.NewMax()
@@ -275,7 +283,8 @@ func runGUI() {
 				container.NewVBox(
 					title,
 					widget.NewSeparator(),
-					intro,
+					calibrated,
+					detected,
 				), nil, nil, nil, content)
 		}
 	}
@@ -301,12 +310,13 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 
 	for i := 1; i < 17; i++ {
 		areaMap_[i] = &ExhibitArea{
-			id:                  i,
-			personDetected:      false,
-			bindPersonDetected:  binding.NewString(),
-			calibrationStarted:  false,
-			calibrationFinished: false,
-			startTime:           time.Now(),
+			id:                      i,
+			personDetected:          false,
+			bindPersonDetected:      binding.NewString(),
+			calibrationStarted:      false,
+			calibrationFinished:     false,
+			bindCalibrationFinished: binding.NewString(),
+			startTime:               time.Now(),
 		}
 		calibrateRange(areaMap_[i], APPROX_CEIL_HEIGHT)
 	}
@@ -314,15 +324,18 @@ func loadExhibitAreas() map[int]*ExhibitArea {
 }
 
 func main() {
-	// // Load .env file
-	// err := godotenv.Load("../.env")
-	// if err != nil {
-	// 	panic(err)
-	// }
+	// Load .env file
+	err := godotenv.Load("../.env")
+	if err != nil {
+		panic(err)
+	}
 
-	// // go serveAPI()
-	// // runGUI()
-
-	// wg.Wait()
+	go serveAPI()
 	runGUI()
+
+	// setPersonDetected(areaMap[1], true)
+	// time.Sleep(3 * time.Second)
+	// setPersonDetected(areaMap[1], false)
+
+	wg.Wait()
 }
