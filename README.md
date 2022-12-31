@@ -48,7 +48,7 @@ You can find your local network address with terminal command
 
 ```python
 # python
-pip3 install flask flask-restful flask-cors python-dotenv
+pip3 install flask flask-restful flask-cors python-dotenv numpy opencv
 # golang
 go get github.com/joho/godotenv && go get fyne.io/fyne/v2
 ```
@@ -59,17 +59,3 @@ go get github.com/joho/godotenv && go get fyne.io/fyne/v2
 // Start webserver
 make master
 ```
-
-
-example_blobs = np.array([140,140,140,140,140,140,140,140,140,140,140,140],
-                       140,140,140,140,140,140,140,140,140,140,140,140],
-                       140,140,140,140,140,140,140,140,140,140,140,140],
-                       140,140, 400., 400.,140,140,140,140,140,140,140,140],
-                       140,140, 400., 400.,140,140,140,140,140,140,140,140],
-                       140,140,140,140,140,140,140,140,140, 600.,140,140],
-                       140,140,140,140,140,140,140,140, 600., 600.,140,140],
-                       140,140,140,140,140,140,140,140, 600., 600.,140,140],
-                       140,140,140,140,140,140,140,140,140,140,140,140],
-                       140,140,140,140, 900., 900.,140,140,140,140,140,140],
-                       140,140,140,140,140, 900.,140,140,140,140,140,140],
-                       140,140,140,140,140,140,140,140,140,140,140,140]]).astype(np.uint8)
