@@ -1,6 +1,8 @@
+#include "ESPAsyncWebServer.h"
+#include "WiFi.h"
 #include "esp_camera.h"
 #include <Arduino.h>
-#include <WiFi.h>
+/* #include <stdio.h> */
 
 //
 // WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
@@ -55,15 +57,16 @@
 // ===========================
 const char *ssid = "yohan_phone";
 const char *password = "testing123";
+int secondsElapsed = 0;
 
 void startCameraServer();
 
 void setup() {
   pinMode(LED_GPIO_NUM, OUTPUT);
 
-  /* Serial.begin(115200); */
+  Serial.begin(115200);
   /* Serial.setDebugOutput(true); */
-  /* Serial.println(); */
+  Serial.println();
 
   /* camera_config_t config; */
   /* config.ledc_channel = LEDC_CHANNEL_0; */
@@ -159,9 +162,13 @@ void setup() {
 }
 
 void loop() {
+
   // toggle led every 1 second
   digitalWrite(LED_GPIO_NUM, HIGH);
-  delay(1000);
+  delay(300);
   digitalWrite(LED_GPIO_NUM, LOW);
-  delay(1000);
+  delay(300);
+
+  /* printf("seconds elapsed: %d", ++secondsElapsed); */
+  Serial.println("seconds elapsed: " + String(++secondsElapsed));
 }
