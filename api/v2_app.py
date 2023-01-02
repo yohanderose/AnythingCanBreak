@@ -1,4 +1,4 @@
-from exhibit import ExhibitArea
+from v2_exhibit import ExhibitAreaV2
 import time
 from datetime import datetime as dt
 import os

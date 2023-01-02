@@ -9,35 +9,8 @@
 #include "soc/soc.h"          //disable brownout problems
 #include <Arduino.h>
 #include <AsyncTCP.h>
-/* #include <stdio.h> */
 
-//
-// WARNING!!! PSRAM IC required for UXGA resolution and high JPEG quality
-//            Ensure ESP32 Wrover Module or other board with PSRAM is selected
-//            Partial images will be transmitted if image exceeds buffer size
-//
-//            You must select partition scheme from the board menu that has at
-//            least 3MB APP space. Face Recognition is DISABLED for ESP32 and
-//            ESP32-S2, because it takes up from 15 seconds to process single
-//            frame. Face Detection is ENABLED if PSRAM is enabled as well
-
-// ===================
-// Select camera model
-// ===================
-//#define CAMERA_MODEL_WROVER_KIT // Has PSRAM
-//#define CAMERA_MODEL_ESP_EYE // Has PSRAM
-//#define CAMERA_MODEL_ESP32S3_EYE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_PSRAM // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_V2_PSRAM // M5Camera version B Has PSRAM
-//#define CAMERA_MODEL_M5STACK_WIDE // Has PSRAM
-//#define CAMERA_MODEL_M5STACK_ESP32CAM // No PSRAM
-//#define CAMERA_MODEL_M5STACK_UNITCAM // No PSRAM
 #define CAMERA_MODEL_AI_THINKER // Has PSRAM
-//#define CAMERA_MODEL_TTGO_T_JOURNAL // No PSRAM
-// ** Espressif Internal Boards **
-//#define CAMERA_MODEL_ESP32_CAM_BOARD
-//#define CAMERA_MODEL_ESP32S2_CAM_BOARD
-//#define CAMERA_MODEL_ESP32S3_CAM_LCD
 
 #define PWDN_GPIO_NUM 32
 #define RESET_GPIO_NUM -1
@@ -69,8 +42,16 @@ static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: "
 const char *ssid = "yohan_phone";
 const char *pass = "testing123";
 int secondsElapsed = 0;
+int deviceID = 1;
 
 httpd_handle_t stream_httpd = NULL;
+
+static esp_err_t device_id_handler(httpd_req_t *req) {
+  char content[1024];
+  sprintf(content, "Device ID: %d", deviceID);
+  httpd_resp_send(req, content, strlen(content));
+  return ESP_OK;
+}
 
 static esp_err_t stream_handler(httpd_req_t *req) {
   camera_fb_t *fb = NULL;
@@ -154,9 +135,15 @@ void startCameraServer() {
                            .handler = stream_handler,
                            .user_ctx = NULL};
 
+  httpd_uri_t device_id_uri = {.uri = "/id",
+                               .method = HTTP_GET,
+                               .handler = device_id_handler,
+                               .user_ctx = NULL};
+
   // Serial.printf("Starting web server on port: '%d'\n", config.server_port);
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &index_uri);
+    httpd_register_uri_handler(stream_httpd, &device_id_uri);
   }
 }
 
