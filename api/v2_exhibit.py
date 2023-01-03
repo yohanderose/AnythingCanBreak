@@ -14,21 +14,8 @@ class ExhibitAreaV2:
         self.playlist = playlist
         self.person_detected = False
         self.proc = None
-
-        self.calibration_started = False
-        self.start_time = None
-        self.calibration_finished = False
-        self._floor_ranges = []
-        self.floor_range = -1
-        self.calibrate_range(approx_floor_height)
-        self.last_range = approx_floor_height
-
-    def calibrate_range(self, floor_range_reading):
-        self._floor_ranges.append(floor_range_reading)
-        self._floor_ranges = sorted(self._floor_ranges)
-        self.floor_range = self._floor_ranges[len(
-            self._floor_ranges) // 2]
-        self.trigger_range = self.floor_range - 20
+        self.ip = None
+        self.video_stream = None
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
