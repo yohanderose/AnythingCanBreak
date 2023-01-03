@@ -39,10 +39,13 @@ static const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: "
                                   "%u\r\nX-Timestamp: %d.%06d\r\n\r\n";
 
-const char *ssid = "yohan_phone";
-const char *pass = "testing123";
+/* const char *ssid = "yohan_phone"; */
+/* const char *pass = "testing123"; */
+const char *ssid = "anythingcanbreaknet"; // your network SSID (name)
+const char *pass = "48881722";            // your network password
+
 int secondsElapsed = 0;
-int deviceID = 1;
+int deviceID = 2;
 
 httpd_handle_t stream_httpd = NULL;
 
@@ -268,6 +271,8 @@ void setup() {
   startCameraServer();
   /* int res = startCameraServer(); */
   /* if (res == 0) { */
+  Serial.print("Device ID: ");
+  Serial.println(deviceID);
   Serial.print("Camera Ready! Use 'http://");
   Serial.print(WiFi.localIP());
   Serial.println("' to connect");
@@ -279,10 +284,10 @@ void setup() {
 void loop() {
 
   // toggle led every 1 second
-  /* digitalWrite(LED_GPIO_NUM, HIGH); */
-  /* delay(300); */
-  /* digitalWrite(LED_GPIO_NUM, LOW); */
-  delay(10000);
+  digitalWrite(LED_GPIO_NUM, HIGH);
+  delay(300);
+  digitalWrite(LED_GPIO_NUM, LOW);
+  delay(700);
 
   /* printf("seconds elapsed: %d", ++secondsElapsed); */
   /* Serial.println("seconds elapsed: " + String(++secondsElapsed)); */

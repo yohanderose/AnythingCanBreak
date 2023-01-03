@@ -12,6 +12,7 @@ from flask import Flask, appcontext_tearing_down,  request, jsonify, Response
 from flask_cors import CORS
 from threading import Thread
 from subprocess import Popen, PIPE
+from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 import cv2
@@ -19,8 +20,7 @@ import cv2
 from dotenv import load_dotenv
 load_dotenv()
 
-DEVELOPMENT = False
-INIT_CALIBRATION_SECONDS = 10
+flask_server = True
 HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sound')
 sound_sensors = [i for i in range(1, 17)]
@@ -77,28 +77,39 @@ def ping_ip_for_id(ip) -> int:
     return -1
 
 
-def assign_exhibit_IPs():
-    cmd = f"nmap -sn {HOST_IP[:-1]}0/24 -oG -" + \
+def _assign_exhibitarea_IP(ip):
+    global area_obj_map
+    try:
+        id = ping_ip_for_id(ip)
+        if id > 0 and id <= 16:
+            print(f"Found device with id {id} at {ip}")
+            while True:
+                area_obj_map[id].ip = ip
+                area_obj_map[id].video_stream = cv2.VideoCapture(
+                    'http://'+ip)
+                if area_obj_map[id].video_stream.isOpened():
+                    print(f"Assigned {ip} to ExhibitAreaV2 {id}")
+                    break
+    except Exception as e:
+        # allow other random devices to be pinged without crashing
+        pass
+    return False
+
+
+def assign_exhibitarea_IPs():
+    cmd = f"nmap -sn {HOST_IP[:-2]}0/24 -oG -" + \
         " | grep 'Status: Up' | awk '{print $2}' "
-    # print(cmd)
+    print(cmd)
     p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
     out, err = p.communicate()
     out = out.decode("utf-8").split('\n')
     if len(err) > 0:
         print(err)
         return
-    for ip in out:
-        if len(ip) > 0:
-            try:
-                id = ping_ip_for_id(ip)
-                if id > 0:
-                    area_obj_map[id].ip = ip
-                    print(f"Assigned {ip} to ExhibitAreaV2 {id}")
-                    area_obj_map[id].video_stream = cv2.VideoCapture(
-                        'http://'+ip)
-
-            except Exception as e:
-                pass
+    res = []
+    with ThreadPoolExecutor(max_workers=25) as executor:
+        res = executor.map(_assign_exhibitarea_IP, out)
+    return res
 
 
 playlist = find_audio_files()
@@ -117,7 +128,7 @@ area_state_img = default_id_img.copy()
 
 def get_frames_from_devices():
     global area_state_img, area_obj_map
-    assign_exhibit_IPs()
+    assign_exhibitarea_IPs()
 
     while True:
         for area in area_obj_map.values():
@@ -130,6 +141,9 @@ def get_frames_from_devices():
                         # frame = cv2.resize(frame, (IMG_WIDTH, IMG_HEIGHT))
                         write_slice_from_id(
                             area_state_img, area.sound_id, frame[:, :, 0])
+                    else:
+                        area.video_stream.release()
+                        area.video_stream = cv2.VideoCapture('http://'+area.ip)
 
             except Exception as e:
                 print(e)
@@ -153,46 +167,45 @@ def apply_state_to_system():
 
 
 def detect_update_state():
-    global area_state_img, state_dict
+    global area_state_img, state_dict, area_obj_map
 
-    _state = dict(zip(sound_sensors, [False] * len(sound_sensors)))
-    contours, _ = cv2.findContours(
-        area_state_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-    point_contours = np.vstack(contours).squeeze()
+    try:
+        _state = dict(zip(sound_sensors, [False] * len(sound_sensors)))
+        contours, _ = cv2.findContours(
+            area_state_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        point_contours = np.vstack(contours).squeeze()
 
-    for point in point_contours:
-        id = get_areaID_by_coordinate(point[0], point[1])
-        _state[id] = True
+        for point in point_contours:
+            id = get_areaID_by_coordinate(point[0], point[1])
+            if area_obj_map[id].video_stream:
+                _state[id] = True
 
-    if _state != state_dict:
-        state_dict = _state
-        # apply_state_to_system()
-
-
-def generate_UI_frames():
-    global area_state_img
-    while True:
-        frame = cv2.imencode('.jpg', area_state_img)[1].tobytes()
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+        if _state != state_dict:
+            state_dict = _state
+            # apply_state_to_system()
+    except Exception as e:
+        print("OPENCV ERROR DETECTING CONTOURS -- ", e)
 
 
 # write_slice_from_id(area_state_img, 1, data=200)
 # print(ping_ip_for_id('172.20.10.2'))
+# print(ping_ip_for_id('172.20.10.4'))
 # get_frames_from_devices()
-# assign_exhibit_IPs()
+# assign_exhibitarea_IPs()
 cv_consumer = Thread(target=get_frames_from_devices)
-cv_detector = Thread(target=detect_update_state)
 cv_consumer.start()
+cv_detector = Thread(target=detect_update_state)
 cv_detector.start()
 
 
 def handle_sigkill(signum, frame):
     print("SIGKILL")
+
     for area in area_obj_map.values():
         if area.video_stream is not None:
             print(f"Releasing video stream {area.sound_id}")
             area.video_stream.release()
+
     sys.exit(0)
 
 
@@ -214,7 +227,15 @@ signal.signal(signal.SIGINT, handle_sigkill)
 #                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]], np.uint8)
 
 
+def generate_UI_frames():
+    global area_state_img
+    while True:
+        frame = cv2.imencode('.jpg', area_state_img)[1].tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
 # # # -------------------------------- FLASK API --------------------------------
+
 
 app = Flask(__name__)
 CORS(app)
@@ -256,4 +277,5 @@ def visualise():
 #     return jsonify({"status": "error"})
 
 
-app.run(debug=True, host=f'{HOST_IP}', port=5000)
+if flask_server:
+    app.run(debug=True, host=f'{HOST_IP}', port=5000)
