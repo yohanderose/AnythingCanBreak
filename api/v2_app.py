@@ -27,7 +27,7 @@ sound_sensors = [i for i in range(1, 17)]
 
 num_imgs = len(sound_sensors)
 arangement = (4, 4)
-IMG_WIDTH = 320
+IMG_WIDTH = 240
 IMG_HEIGHT = 240
 
 default_id_img = np.zeros(
@@ -97,7 +97,8 @@ def _assign_exhibitarea_IP(ip):
 
 
 def assign_exhibitarea_IPs():
-    cmd = f"nmap -sn {HOST_IP[:-2]}0/24 -oG -" + \
+    host_ip = ".".join(HOST_IP.split(".")[:-1])
+    cmd = f"nmap -sn {host_ip}.0/24 -oG -" + \
         " | grep 'Status: Up' | awk '{print $2}' "
     print(cmd)
     p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
@@ -138,9 +139,13 @@ def get_frames_from_devices():
                 if area.video_stream:
                     ret, frame = area.video_stream.read()
                     if ret:
-                        # frame = cv2.resize(frame, (IMG_WIDTH, IMG_HEIGHT))
+                        # Crop to square and convert to greyscale
+                        frame = frame[-IMG_HEIGHT:, -IMG_WIDTH:, 0]
+                        # frame = cv2.GaussianBlur(frame, (5, 5), 0)
+                        # frame = cv2.fastNlMeansDenoisingMulti(
+                        #     frame, 2, 5, None, 4, 7, 35)
                         write_slice_from_id(
-                            area_state_img, area.sound_id, frame[:, :, 0])
+                            area_state_img, area.sound_id, frame)
                     else:
                         area.video_stream.release()
                         area.video_stream = cv2.VideoCapture('http://'+area.ip)

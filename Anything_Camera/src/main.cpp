@@ -39,10 +39,10 @@ static const char *_STREAM_BOUNDARY = "\r\n--" PART_BOUNDARY "\r\n";
 static const char *_STREAM_PART = "Content-Type: image/jpeg\r\nContent-Length: "
                                   "%u\r\nX-Timestamp: %d.%06d\r\n\r\n";
 
-/* const char *ssid = "yohan_phone"; */
-/* const char *pass = "testing123"; */
-const char *ssid = "anythingcanbreaknet"; // your network SSID (name)
-const char *pass = "48881722";            // your network password
+const char *ssid = "yohan_phone";
+const char *pass = "testing123";
+/* const char *ssid = "anythingcanbreaknet"; // your network SSID (name) */
+/* const char *pass = "48881722";            // your network password */
 
 int secondsElapsed = 0;
 int deviceID = 2;
