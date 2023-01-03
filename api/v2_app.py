@@ -98,7 +98,7 @@ def _assign_exhibitarea_IP(ip):
 
 def assign_exhibitarea_IPs():
     host_ip = ".".join(HOST_IP.split(".")[:-1])
-    cmd = f"nmap -sn {host_ip}.0/24 -oG -" + \
+    cmd = f"nmap -sn --system-dns {host_ip}.0/24 -oG -" + \
         " | grep 'Status: Up' | awk '{print $2}' "
     print(cmd)
     p = Popen(cmd, shell=True, stdout=PIPE, stderr=PIPE)
@@ -133,25 +133,25 @@ def get_frames_from_devices():
 
     while True:
         for area in area_obj_map.values():
-            if area.ip is None:
-                continue
-            try:
-                if area.video_stream:
-                    ret, frame = area.video_stream.read()
-                    if ret:
-                        # Crop to square and convert to greyscale
-                        frame = frame[-IMG_HEIGHT:, -IMG_WIDTH:, 0]
-                        # frame = cv2.GaussianBlur(frame, (5, 5), 0)
-                        # frame = cv2.fastNlMeansDenoisingMulti(
-                        #     frame, 2, 5, None, 4, 7, 35)
-                        write_slice_from_id(
-                            area_state_img, area.sound_id, frame)
-                    else:
-                        area.video_stream.release()
-                        area.video_stream = cv2.VideoCapture('http://'+area.ip)
-
-            except Exception as e:
-                print(e)
+            if area.ip is not None:  # Device  detected
+                try:
+                    if area.video_stream:
+                        ret, frame = area.video_stream.read()
+                        if ret:
+                            # Crop to square and convert to greyscale
+                            frame = frame[-IMG_HEIGHT:, -IMG_WIDTH:, 0]
+                            # # Add Blur
+                            # frame = cv2.GaussianBlur(frame, (5, 5), 0)
+                            write_slice_from_id(
+                                area_state_img, area.sound_id, frame)
+                        else:
+                            if area.video_stream:
+                                area.video_stream.release()
+                                area.video_stream = None
+                                area.video_stream = cv2.VideoCapture(
+                                    'http://' + area.ip)
+                except Exception as e:
+                    pass
 
 
 def apply_state_to_system():
@@ -174,22 +174,26 @@ def apply_state_to_system():
 def detect_update_state():
     global area_state_img, state_dict, area_obj_map
 
-    try:
-        _state = dict(zip(sound_sensors, [False] * len(sound_sensors)))
-        contours, _ = cv2.findContours(
-            area_state_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        point_contours = np.vstack(contours).squeeze()
+    brightness = 30
+    contrast = 2
 
-        for point in point_contours:
-            id = get_areaID_by_coordinate(point[0], point[1])
-            if area_obj_map[id].video_stream:
-                _state[id] = True
+    while True:
+        try:
+            _state = dict(zip(sound_sensors, [False] * len(sound_sensors)))
+            contours, _ = cv2.findContours(
+                area_state_img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            point_contours = np.vstack(contours).squeeze()
 
-        if _state != state_dict:
-            state_dict = _state
-            # apply_state_to_system()
-    except Exception as e:
-        print("OPENCV ERROR DETECTING CONTOURS -- ", e)
+            for point in point_contours:
+                id = get_areaID_by_coordinate(point[0], point[1])
+                if area_obj_map[id].video_stream:
+                    _state[id] = True
+
+            if _state != state_dict:
+                state_dict = _state
+                apply_state_to_system()
+        except Exception as e:
+            print("OPENCV ERROR DETECTING CONTOURS -- ", e)
 
 
 # write_slice_from_id(area_state_img, 1, data=200)
@@ -199,8 +203,8 @@ def detect_update_state():
 # assign_exhibitarea_IPs()
 cv_consumer = Thread(target=get_frames_from_devices)
 cv_consumer.start()
-cv_detector = Thread(target=detect_update_state)
-cv_detector.start()
+# cv_detector = Thread(target=detect_update_state)
+# cv_detector.start()
 
 
 def handle_sigkill(signum, frame):
