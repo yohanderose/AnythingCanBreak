@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+import cv2
+import numpy as np
 import signal
 import sys
 from v2_exhibit import ExhibitAreaV2
@@ -12,15 +15,13 @@ from flask import Flask, appcontext_tearing_down,  request, jsonify, Response
 from flask_cors import CORS
 from threading import Thread
 from subprocess import Popen, PIPE
+from multiprocessing import Pool, Process
 from concurrent.futures import ThreadPoolExecutor
+import PySimpleGUI as sg
 
-import numpy as np
-import cv2
 
-from dotenv import load_dotenv
 load_dotenv()
 
-flask_server = True
 HOST_IP = os.getenv("HOST_IP")
 SOUNDS_DIR = os.path.join(os.path.dirname(__file__), 'sound')
 sound_sensors = [i for i in range(1, 17)]
@@ -31,7 +32,7 @@ IMG_WIDTH = 240
 IMG_HEIGHT = 240
 
 default_id_img = np.zeros(
-    (IMG_HEIGHT * arangement[1], IMG_WIDTH * arangement[0]))
+    (IMG_HEIGHT * arangement[1], IMG_WIDTH * arangement[0])).astype(np.uint8)
 print(
     f"Stacked grid of image dimension {default_id_img.shape} \n-- {num_imgs} arranged {arangement} ")
 
@@ -93,7 +94,6 @@ def _assign_exhibitarea_IP(ip):
     except Exception as e:
         # allow other random devices to be pinged without crashing
         pass
-    return False
 
 
 def assign_exhibitarea_IPs():
@@ -106,9 +106,9 @@ def assign_exhibitarea_IPs():
     out = out.decode("utf-8").split('\n')
     if len(err) > 0:
         print(err)
-        return
+        return 1
     res = []
-    with ThreadPoolExecutor(max_workers=25) as executor:
+    with ThreadPoolExecutor(max_workers=32) as executor:
         res = executor.map(_assign_exhibitarea_IP, out)
     return res
 
@@ -126,32 +126,50 @@ for i in range(1, num_imgs+1):
     write_slice_from_id(default_id_img, i, data=i)
 area_state_img = default_id_img.copy()
 
+sg.theme("LightGreen")
+sg_ui_window = sg.Window('Exhibit Area Overview', [
+    [sg.Image(filename='', key='image')]], location=(800, 400))
 
-def get_frames_from_devices():
-    global area_state_img, area_obj_map
-    assign_exhibitarea_IPs()
+
+def write_frames_from_devices(area: ExhibitAreaV2):
+    global sg_ui_window
+
+    if area.ip is not None:  # Device  detected
+        # print(f'Area {area.sound_id}')
+        try:
+            if area.video_stream:
+                ret, frame = area.video_stream.read()
+                if ret:
+                    # Crop to square and convert to greyscale
+                    frame = frame[-IMG_HEIGHT:, -IMG_WIDTH:, 0]
+                    # # Add Blur
+                    # frame = cv2.GaussianBlur(frame, (5, 5), 0)
+                    write_slice_from_id(
+                        area_state_img, area.sound_id, frame)
+                    # sg_ui_window.read(timeout=0)
+                    # sg_ui_window['image'].update(data=cv2.imencode(
+                    #     '.png', area_state_img)[1].tobytes())
+                else:
+                    if area.video_stream:
+                        area.video_stream.release()
+                        area.video_stream = None
+                        area.video_stream = cv2.VideoCapture(
+                            'http://' + area.ip)
+        except Exception as e:
+            print(e)
+
+
+def read_frames_from_devices():
+    global area_state_img, area_obj_map, sg_ui_window
 
     while True:
-        for area in area_obj_map.values():
-            if area.ip is not None:  # Device  detected
-                try:
-                    if area.video_stream:
-                        ret, frame = area.video_stream.read()
-                        if ret:
-                            # Crop to square and convert to greyscale
-                            frame = frame[-IMG_HEIGHT:, -IMG_WIDTH:, 0]
-                            # # Add Blur
-                            # frame = cv2.GaussianBlur(frame, (5, 5), 0)
-                            write_slice_from_id(
-                                area_state_img, area.sound_id, frame)
-                        else:
-                            if area.video_stream:
-                                area.video_stream.release()
-                                area.video_stream = None
-                                area.video_stream = cv2.VideoCapture(
-                                    'http://' + area.ip)
-                except Exception as e:
-                    pass
+        # for area in area_obj_map.values():
+        #     write_frames_from_devices(area)
+        with ThreadPoolExecutor(max_workers=16) as exe:
+            exe.map(write_frames_from_devices, area_obj_map.values())
+        sg_ui_window.read(timeout=0)
+        sg_ui_window['image'].update(data=cv2.imencode(
+            '.png', area_state_img)[1].tobytes())
 
 
 def apply_state_to_system():
@@ -191,20 +209,9 @@ def detect_update_state():
 
             if _state != state_dict:
                 state_dict = _state
-                apply_state_to_system()
+                # apply_state_to_system()
         except Exception as e:
             print("OPENCV ERROR DETECTING CONTOURS -- ", e)
-
-
-# write_slice_from_id(area_state_img, 1, data=200)
-# print(ping_ip_for_id('172.20.10.2'))
-# print(ping_ip_for_id('172.20.10.4'))
-# get_frames_from_devices()
-# assign_exhibitarea_IPs()
-cv_consumer = Thread(target=get_frames_from_devices)
-cv_consumer.start()
-# cv_detector = Thread(target=detect_update_state)
-# cv_detector.start()
 
 
 def handle_sigkill(signum, frame):
@@ -214,34 +221,21 @@ def handle_sigkill(signum, frame):
         if area.video_stream is not None:
             print(f"Releasing video stream {area.sound_id}")
             area.video_stream.release()
-
+    cv2.destroyAllWindows()
     sys.exit(0)
 
 
 signal.signal(signal.SIGINT, handle_sigkill)
 
-# time.sleep(10)
-# area_state_img = example_blobs.copy()
-# example_blobs = np.array([[0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 100., 100., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 100., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 200., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 200., 200., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 255., 255., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
-#                           [0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.]], np.uint8)
-
 
 def generate_UI_frames():
     global area_state_img
+    ui_frame = cv2.imencode('.jpg', area_state_img)[1].tobytes()
+
     while True:
-        frame = cv2.imencode('.jpg', area_state_img)[1].tobytes()
         yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+               b'Content-Type: image/jpeg\r\n\r\n' + ui_frame + b'\r\n')
+        ui_frame = cv2.imencode('.jpg', area_state_img)[1].tobytes()
 
 # # # -------------------------------- FLASK API --------------------------------
 
@@ -261,30 +255,21 @@ def visualise():
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
-# @ app.route('/data', methods=['GET'])
-# def data():
-#     origin = request.remote_addr
-#     res = ""
-
-#     try:
-#         # sensorID_ = request.get_json(force=True)['sensorID']
-#         # range_ = request.get_json(force=True)['range']
-#         sensorID_ = request.args.get('sensorID')
-#         img_data = request.args.get('imgData')
-
-#         write_slice_from_id(area_state_img, int(sensorID_), data=img_data)
-
-#         res = f"({origin}) sensorID: {sensorID_}, range: {range_}, trigger_range {area.trigger_range}, motion: {motion_}, calibrated: {area.calibration_finished}"
-#         print(f"{dt.now()} | {res}")
-#         log.write(f"{dt.now()} | {res}")
-#         return jsonify({"status": "ok"})
-#     except Exception as e:
-#         print(e)
-#         log.write(f"{dt.now()} | {origin} Error: {e}\n")
-
-#     # return error response
-#     return jsonify({"status": "error"})
+# write_slice_from_id(area_state_img, 1, data=200)
+# print(ping_ip_for_id('172.20.10.2'))
+# print(ping_ip_for_id('172.20.10.4'))
+# read_frames_from_devices()
+assign_exhibitarea_IPs()
+cv_consumer = Process(target=read_frames_from_devices)
+cv_consumer.start()
+# cv_detector = Thread(target=detect_update_state)
+# cv_detector.start()
+# app.run(debug=True, host=f'{HOST_IP}', port=5000)
 
 
-if flask_server:
-    app.run(debug=True, host=f'{HOST_IP}', port=5000)
+# for i in range(200):
+#     sg_ui_window.read(timeout=20)
+#     sg_ui_window['image'].update(data=cv2.imencode(
+#         '.png', area_state_img)[1].tobytes())
+#     time.sleep(0.1)
+#     write_slice_from_id(area_state_img, 1, data=i+1)

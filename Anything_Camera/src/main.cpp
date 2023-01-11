@@ -45,7 +45,7 @@ const char *ssid = "anythingcanbreaknet"; // your network SSID (name)
 const char *pass = "48881722";            // your network password
 
 int secondsElapsed = 0;
-int deviceID = 2;
+int deviceID = 4;
 
 httpd_handle_t stream_httpd = NULL;
 
