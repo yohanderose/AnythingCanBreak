@@ -49,6 +49,14 @@ int deviceID = 2;
 
 httpd_handle_t stream_httpd = NULL;
 
+static esp_err_t remote_restart_handler(httpd_req_t *req) {
+  char content[1024];
+  sprintf(content, "Restarting %d", deviceID);
+  httpd_resp_send(req, content, strlen(content));
+  ESP.restart();
+  return ESP_OK;
+}
+
 static esp_err_t device_id_handler(httpd_req_t *req) {
   char content[1024];
   sprintf(content, "Device ID: %d", deviceID);
@@ -143,10 +151,16 @@ void startCameraServer() {
                                .handler = device_id_handler,
                                .user_ctx = NULL};
 
+  httpd_uri_t restart_uri = {.uri = "/restart",
+                             .method = HTTP_GET,
+                             .handler = remote_restart_handler,
+                             .user_ctx = NULL};
+
   // Serial.printf("Starting web server on port: '%d'\n", config.server_port);
   if (httpd_start(&stream_httpd, &config) == ESP_OK) {
     httpd_register_uri_handler(stream_httpd, &index_uri);
     httpd_register_uri_handler(stream_httpd, &device_id_uri);
+    httpd_register_uri_handler(stream_httpd, &restart_uri);
   }
 }
 
