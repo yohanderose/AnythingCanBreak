@@ -16,6 +16,7 @@ class ExhibitAreaV2:
         self.proc = None
         self.ip = None
         self.video_stream = None
+        self.ref_frame = None
 
     def set_person_detected(self, person_detected):
         self.person_detected = person_detected
